@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V26.9.3 (MAX FLING & ULTRA ANTI-FLING ENGINE)
+-- MM2 ULTIMATE V26.9.2 (AUTO 40 COINS MURDERER FLING) - REDESIGNED
 -- ============================================================
 
 local player = game.Players.LocalPlayer
@@ -17,7 +17,7 @@ local function getCharacter()
     return nil, nil, nil
 end
 
--- Переменные состояний
+-- Состояния функций (оригинальные переменные)
 local isFlingingSingle = false
 local isFlingingAll = false
 local espEnabled = false
@@ -28,19 +28,19 @@ local ghostModeEnabled = false
 local antiKillEnabled = false
 local noclipEnabled = false
 local silentAimEnabled = false
-local maxAntiFlingEnabled = true -- По умолчанию включена ультра-защита
+local maxAntiFlingEnabled = false -- Новая переменная для Anti-Fling
 local selectedPlayer = nil
 local bav = nil
 local originalCFrame = nil
 local safePointCFrame = nil
 
--- ========== GUI Setup ==========
+-- ========== GUI Setup (New Modern Design) ==========
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "MM2_Mobile_Panel_V26_9_3"
+screenGui.Name = "MM2_Mobile_Panel_V26_9_2"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
--- Кнопка Toggle
+-- Кнопка Toggle (Скрытие / Показ)
 local toggleGuiBtn = Instance.new("TextButton")
 toggleGuiBtn.Size = UDim2.new(0, 140, 0, 38)
 toggleGuiBtn.Position = UDim2.new(0.5, -70, 0, 10)
@@ -60,8 +60,8 @@ tgStroke.Parent = toggleGuiBtn
 
 -- Главный Фрейм
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 280, 0, 430)
-mainFrame.Position = UDim2.new(0.5, -140, 0.5, -215)
+mainFrame.Size = UDim2.new(0, 280, 0, 420)
+mainFrame.Position = UDim2.new(0.5, -140, 0.5, -210)
 mainFrame.BackgroundColor3 = Color3.fromRGB(18, 19, 26)
 mainFrame.BorderSizePixel = 0
 mainFrame.ClipsDescendants = false
@@ -83,6 +83,7 @@ titleBar.BorderSizePixel = 0
 titleBar.Parent = mainFrame
 local titleCorner = Instance.new("UICorner") titleCorner.CornerRadius = UDim.new(0, 14) titleCorner.Parent = titleBar
 
+-- Прячем нижние углы шапки
 local titleFix = Instance.new("Frame")
 titleFix.Size = UDim2.new(1, 0, 0, 10)
 titleFix.Position = UDim2.new(0, 0, 1, -10)
@@ -94,13 +95,14 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -20, 1, 0)
 title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "⚡ MM2 ULTIMATE V26.9.3"
+title.Text = "⚡ MM2 ULTIMATE V26.9.2"
 title.TextColor3 = Color3.fromRGB(0, 230, 255)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 14
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = titleBar
 
+-- Разделитель под шапкой
 local sep = Instance.new("Frame")
 sep.Size = UDim2.new(1, 0, 0, 1)
 sep.Position = UDim2.new(0, 0, 1, 0)
@@ -115,7 +117,7 @@ scroll.Position = UDim2.new(0, 6, 0, 46)
 scroll.BackgroundTransparency = 1
 scroll.ScrollBarThickness = 3
 scroll.ScrollBarImageColor3 = Color3.fromRGB(0, 230, 255)
-scroll.CanvasSize = UDim2.new(0, 0, 0, 680)
+scroll.CanvasSize = UDim2.new(0, 0, 0, 660)
 scroll.ClipsDescendants = true
 scroll.Parent = mainFrame
 
@@ -125,6 +127,7 @@ layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 layout.SortOrder = Enum.SortOrder.LayoutOrder
 layout.Parent = scroll
 
+-- Вспомогательная функция создания стильных кнопок
 local function createButton(text, defaultColor, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -8, 0, 36)
@@ -143,6 +146,7 @@ local function createButton(text, defaultColor, callback)
     s.Thickness = 1 
     s.Parent = btn
 
+    -- Эффект клика
     btn.MouseButton1Down:Connect(function()
         TweenService:Create(btn, TweenInfo.new(0.1), {Size = UDim2.new(0.96, -8, 0, 34)}):Play()
     end)
@@ -154,7 +158,7 @@ local function createButton(text, defaultColor, callback)
     return btn
 end
 
--- Перетаскивание
+-- Перетаскивание за шапку
 local dragging, dragStart, startPos
 titleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -246,7 +250,7 @@ selectBtn.Activated:Connect(function()
     if listFrame.Visible then updatePlayerList() end
 end)
 
--- Safe-Point
+-- ========== КНОПКА SAFE-ТОЧКИ ==========
 createButton("📌 Поставить Safe-Точку", Color3.fromRGB(60, 45, 110), function(btn)
     local _, _, root = getCharacter()
     if root then
@@ -257,7 +261,7 @@ createButton("📌 Поставить Safe-Точку", Color3.fromRGB(60, 45, 1
     end
 end)
 
--- ESP
+-- ========== 1. ROLE ESP ==========
 local espFolder = Instance.new("Folder", screenGui)
 createButton("👁️ Role ESP: ВЫКЛ", Color3.fromRGB(32, 35, 48), function(btn)
     espEnabled = not espEnabled
@@ -301,6 +305,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+-- ========== ПОЛУЧЕНИЕ КОЛИЧЕСТВА МОНЕТ ==========
 local function getCoinCount()
     local coinData = player:FindFirstChild("CoinData") or player:FindFirstChild("leaderstats")
     if coinData then
@@ -318,6 +323,7 @@ local function getCoinCount()
     return 0
 end
 
+-- Функция поиска убийцы для рванки
 local function getMurderer()
     for _, plr in ipairs(game.Players:GetPlayers()) do
         if plr ~= player and plr.Character then
@@ -329,91 +335,66 @@ local function getMurderer()
     return nil
 end
 
--- ============================================================
--- NEW ULTRA FLING ENGINE V27 (BYPASS NETWORK CAP)
--- ============================================================
-
+-- ========== РВАНКА V25 ENGINE ==========
 local function emergencyStop()
-    isFlingingSingle = false 
-    isFlingingAll = false
-    
-    local char, hum, root = getCharacter()
+    isFlingingSingle = false isFlingingAll = false
+    if bav then bav:Destroy() bav = nil end
+    local char, _, root = getCharacter()
     if char then
         for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then 
-                part.CanCollide = true 
-            end
+            if part:IsA("BasePart") then part.CanCollide = true end
         end
     end
-    
     if root then
         root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
         root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-        if originalCFrame then 
-            root.CFrame = originalCFrame 
-        end
+        if originalCFrame then root.CFrame = originalCFrame end
     end
 end
 
 local function startFlingLoop(getTargetFunc, isRunningCheck, durationLimit)
-    local char, hum, root = getCharacter()
-    if not root then return end
+    local char, _, root = getCharacter()
+    if root then originalCFrame = root.CFrame end
     
-    originalCFrame = root.CFrame
+    bav = Instance.new("BodyAngularVelocity")
+    bav.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    bav.AngularVelocity = Vector3.new(0, 9999999, 0)
+    bav.P = 2000000
+    if root then bav.Parent = root end
+
     local startTime = tick()
     local angle = 0
 
-    -- Отключаем коллизию на время рванки, чтобы не застревать
     local steppedConn = RunService.Stepped:Connect(function()
         if not isRunningCheck() then return end
         local currentChar = getCharacter()
         if currentChar then
             for _, part in ipairs(currentChar:GetDescendants()) do
-                if part:IsA("BasePart") then 
-                    part.CanCollide = false 
-                end
+                if part:IsA("BasePart") then part.CanCollide = false end
             end
         end
     end)
 
     local heartConn
     heartConn = RunService.Heartbeat:Connect(function()
-        local _, currentHum, currentRoot = getCharacter()
-        
+        local _, _, currentRoot = getCharacter()
         if not isRunningCheck() or not currentRoot or (durationLimit and (tick() - startTime > durationLimit)) then
-            heartConn:Disconnect() 
-            steppedConn:Disconnect() 
-            emergencyStop() 
-            return
+            heartConn:Disconnect() steppedConn:Disconnect() emergencyStop() return
         end
-        
         local currentTarget = getTargetFunc()
         local targetRoot = currentTarget and currentTarget.Character and (currentTarget.Character:FindFirstChild("HumanoidRootPart") or currentTarget.Character:FindFirstChild("Torso"))
-        
         if targetRoot and currentRoot then
-            angle = (angle + 100) % 360
-            
-            -- Рассчитываем позицию с учетом пинга и скорости цели
-            local targetVel = targetRoot.AssemblyLinearVelocity
-            local predictedPos = targetRoot.Position + (targetVel * 0.15)
-            
-            -- Смещение вокруг цели для идеального контакта
-            local offset = Vector3.new(math.cos(math.rad(angle)) * 1.5, 0, math.sin(math.rad(angle)) * 1.5)
-            currentRoot.CFrame = CFrame.new(predictedPos + offset)
-            
-            -- Новый метод разгона физического тела (Bypasses Roblox Physics Limit)
-            local flingVelocity = Vector3.new(0, 999999, 0)
-            if angle % 20 == 0 then
-                flingVelocity = Vector3.new(999999, 999999, 999999)
-            end
-            
-            currentRoot.AssemblyLinearVelocity = flingVelocity
-            currentRoot.AssemblyAngularVelocity = Vector3.new(999999, 999999, 999999)
+            angle = angle + 90
+            local predictedCenter = targetRoot.Position + (targetRoot.AssemblyLinearVelocity * 0.08)
+            local offsetX = math.cos(math.rad(angle)) * 1.2
+            local offsetZ = math.sin(math.rad(angle)) * 1.2
+            currentRoot.CFrame = CFrame.new(predictedCenter + Vector3.new(offsetX, 0, offsetZ))
+            currentRoot.AssemblyLinearVelocity = Vector3.new(999999999, 999999999, 999999999)
         end
     end)
 end
 
--- Auto Farm
+-- ========== 2. AUTO FARM COINS ==========
 createButton("💰 Auto Farm Coins: ВЫКЛ", Color3.fromRGB(32, 35, 48), function(btn)
     autoFarmEnabled = not autoFarmEnabled
     btn.Text = autoFarmEnabled and "💰 Auto Farm Coins: ВКЛ ✅" or "💰 Auto Farm Coins: ВЫКЛ"
@@ -439,9 +420,13 @@ task.spawn(function()
         if autoFarmEnabled then
             local char, hum, root = getCharacter()
             if root and hum and hum.Health > 0 then
+
+                -- ЕСЛИ НАБРАНО 40 МОНЕТ — ВКЛЮЧАЕМ РВАНКУ НА УБИЙЦУ
                 if getCoinCount() >= 40 then
                     local murderer = getMurderer()
                     if murderer and murderer.Character and murderer.Character:FindFirstChild("HumanoidRootPart") then
+                        local murdHrp = murderer.Character.HumanoidRootPart
+                        
                         isFlingingSingle = true
                         startFlingLoop(
                             function() return murderer end, 
@@ -457,7 +442,9 @@ task.spawn(function()
                             nil
                         )
 
-                        while isFlingingSingle and autoFarmEnabled do task.wait(0.2) end
+                        while isFlingingSingle and autoFarmEnabled do
+                            task.wait(0.2)
+                        end
                         emergencyStop()
                     end
 
@@ -495,6 +482,7 @@ task.spawn(function()
                             local direction = (targetPos - currentRoot.Position).Unit
                             local stepDistance = math.min((targetPos - currentRoot.Position).Magnitude, flySpeed * 0.03)
                             currentRoot.CFrame = CFrame.new(currentRoot.Position + direction * stepDistance)
+
                             task.wait(0.03)
                         end
 
@@ -511,7 +499,7 @@ task.spawn(function()
     end
 end)
 
--- Aimbot
+-- ========== 3. AIMBOT & AUTO-SHOOT MURDERER ==========
 createButton("🎯 Аимбот на Убийцу: ВЫКЛ", Color3.fromRGB(32, 35, 48), function(btn)
     silentAimEnabled = not silentAimEnabled
     btn.Text = silentAimEnabled and "🎯 Аимбот на Убийцу: ВКЛ ✅" or "🎯 Аимбот на Убийцу: ВЫКЛ"
@@ -547,7 +535,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Kill All
+-- ========== 4. KILL ALL (ЗА МАРДЕРА) ==========
 createButton("🔪 KILL ALL (ЗА МАРДЕРА)", Color3.fromRGB(150, 25, 35), function(btn)
     local char, hum, root = getCharacter()
     if not char then return end
@@ -581,7 +569,7 @@ createButton("🔪 KILL ALL (ЗА МАРДЕРА)", Color3.fromRGB(150, 25, 35),
     btn.Text = "✅ ВСЕ УБИТЫ!" task.wait(1) btn.Text = "🔪 KILL ALL (ЗА МАРДЕРА)"
 end)
 
--- Drop Gun ESP & Auto Pick
+-- ========== 5. DROP GUN ESP & AUTO PICK ==========
 createButton("🔫 Drop Gun ESP: ВЫКЛ", Color3.fromRGB(32, 35, 48), function(btn)
     gunEspEnabled = not gunEspEnabled
     btn.Text = gunEspEnabled and "🔫 Drop Gun ESP: ВКЛ ✅" or "🔫 Drop Gun ESP: ВЫКЛ"
@@ -627,7 +615,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Ghost Mode
+-- ========== 6. GHOST MODE ==========
 createButton("👻 Invisible (Ghost): ВЫКЛ", Color3.fromRGB(32, 35, 48), function(btn)
     ghostModeEnabled = not ghostModeEnabled
     btn.Text = ghostModeEnabled and "👻 Invisible: ВКЛ ✅" or "👻 Invisible: ВЫКЛ"
@@ -643,7 +631,7 @@ createButton("👻 Invisible (Ghost): ВЫКЛ", Color3.fromRGB(32, 35, 48), fun
     end
 end)
 
--- Anti-Kill Safety
+-- ========== 7. ANTI-KILL SAFETY ==========
 createButton("🛡️ Anti-Kill Safety: ВЫКЛ", Color3.fromRGB(32, 35, 48), function(btn)
     antiKillEnabled = not antiKillEnabled
     btn.Text = antiKillEnabled and "🛡️ Anti-Kill: ВКЛ ✅" or "🛡️ Anti-Kill: ВЫКЛ"
@@ -671,54 +659,51 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- ========== 8. MAX ANTI-FLING & COUNTER-LAUNCH (УЛЬТРА ЗАЩИТА) ==========
-createButton("🛡️ Max Anti-Fling: ВКЛ ✅", Color3.fromRGB(180, 50, 0), function(btn)
+-- ========== 8. MAX ANTI-FLING + COUNTER-FLING ==========
+createButton("🛡️ Max Anti-Fling: ВЫКЛ", Color3.fromRGB(32, 35, 48), function(btn)
     maxAntiFlingEnabled = not maxAntiFlingEnabled
     btn.Text = maxAntiFlingEnabled and "🛡️ Max Anti-Fling: ВКЛ ✅" or "🛡️ Max Anti-Fling: ВЫКЛ"
     btn.BackgroundColor3 = maxAntiFlingEnabled and Color3.fromRGB(180, 50, 0) or Color3.fromRGB(32, 35, 48)
 end)
 
 RunService.Heartbeat:Connect(function()
-    if not maxAntiFlingEnabled or isFlingingSingle or isFlingingAll then return end
+    if not maxAntiFlingEnabled then return end
     local char, hum, root = getCharacter()
     if not char or not root or not hum then return end
 
-    -- Мгновенное гашение кинетической энергии собственного тела
-    if root.AssemblyLinearVelocity.Magnitude > 30 then
+    -- Сброс сторонних импульсов
+    if root.AssemblyLinearVelocity.Magnitude > 50 then
         root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
     end
-    if root.AssemblyAngularVelocity.Magnitude > 30 then
+    if root.AssemblyAngularVelocity.Magnitude > 50 then
         root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
     end
 
-    -- Защита состояния персонажа (падение/регдолл)
+    -- Блок сбивания с ног
     hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 
-    -- Контр-удар по вражеским рванщикам в радиусе 10 метров
+    -- Контратака на близко подошедших рванщиков
     for _, otherPlayer in ipairs(game.Players:GetPlayers()) do
         if otherPlayer ~= player and otherPlayer.Character then
             local otherRoot = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
             if otherRoot then
-                -- Отключение коллизии с чужими хитбоксами
                 for _, part in ipairs(otherPlayer.Character:GetDescendants()) do
                     if part:IsA("BasePart") then part.CanCollide = false end
                 end
 
                 local dist = (root.Position - otherRoot.Position).Magnitude
                 local otherSpeed = otherRoot.AssemblyLinearVelocity.Magnitude + otherRoot.AssemblyAngularVelocity.Magnitude
-                
-                -- Детект опасной скорости атакующего
-                if dist < 10 and otherSpeed > 80 then
-                    otherRoot.AssemblyLinearVelocity = Vector3.new(99999999, 99999999, 99999999)
-                    otherRoot.AssemblyAngularVelocity = Vector3.new(99999999, 99999999, 99999999)
+                if dist < 8 and otherSpeed > 100 then
+                    otherRoot.AssemblyLinearVelocity = Vector3.new(9999999, 9999999, 9999999)
+                    otherRoot.AssemblyAngularVelocity = Vector3.new(9999999, 9999999, 9999999)
                 end
             end
         end
     end
 end)
 
--- Noclip
+-- ========== 9. NOCLIP ==========
 createButton("🚶 Noclip (Сквозь стены): ВЫКЛ", Color3.fromRGB(32, 35, 48), function(btn)
     noclipEnabled = not noclipEnabled
     btn.Text = noclipEnabled and "🚶 Noclip: ВКЛ ✅" or "🚶 Noclip: ВЫКЛ"
@@ -736,7 +721,6 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Кнопки атаки
 local rvBtn = createButton("💥 РВАНКА ЦЕЛИ (10 СЕК)", Color3.fromRGB(160, 35, 35), function(btn)
     if isFlingingAll then return end
     if not selectedPlayer then
@@ -783,4 +767,4 @@ createButton("🛑 ЭКСТРЕННЫЙ СТОП РВАНКИ", Color3.fromRGB(2
     allBtn.Text = "🌐 FLING ALL (ВЫКЛ)" allBtn.BackgroundColor3 = Color3.fromRGB(110, 30, 150)
 end)
 
-print("✅ MM2 V26.9.3 ULTIMATE ENGINE LOADED!")
+print("✅ MM2 V26.9.2 LOADED WITH REDESIGNED UI!")
