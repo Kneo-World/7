@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V27.2 (RAYFIELD EDITION + HIGHLIGHT & AURA)
+-- MM2 ULTIMATE V27.3 (RAYFIELD FIXED EDITION)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -68,6 +68,17 @@ local function getMurderer()
     return nil
 end
 
+local function getSheriff()
+    for _, plr in ipairs(game.Players:GetPlayers()) do
+        if plr ~= player and plr.Character then
+            if plr.Character:FindFirstChild("Gun") or plr.Backpack:FindFirstChild("Gun") then 
+                return plr 
+            end
+        end
+    end
+    return nil
+end
+
 -- ========== ДВИЖОК РВАНКИ V27 ==========
 local function emergencyStop()
     isFlingingSingle = false 
@@ -128,9 +139,9 @@ local function startFlingLoop(getTargetFunc, isRunningCheck, durationLimit)
     end)
 end
 
--- ========== ОКНО И ВКЛАДКИ ==========
+-- ========== ОКНО И ВКЛАДКИ RAYFIELD ==========
 local Window = Rayfield:CreateWindow({
-   Name = "⚡ MM2 Ultimate V27.2",
+   Name = "⚡ MM2 Ultimate V27.3",
    LoadingTitle = "Загрузка скрипта...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
@@ -144,27 +155,65 @@ local VisualsTab = Window:CreateTab("👁️ Визуал & ESP", 4483362458)
 local MiscTab = Window:CreateTab("⚙️ Телепорт & Разное", 4483362458)
 
 -- ==================== Вкладка: Рванка & Аура ====================
-FlingTab:CreateSection("Активная Рванка")
+FlingTab:CreateSection("Управление Рванкой")
 
 local playerDropdown = FlingTab:CreateDropdown({
    Name = "Выбрать игрока для рванки",
-   Options = {"Никого"},
-   CurrentOption = {"Никого"},
+   Options = {"[Обновите список]"},
+   CurrentOption = {"[Обновите список]"},
    MultipleOptions = false,
-   Callback = function(Option) selectedPlayerName = Option[1] end,
+   Callback = function(Option) 
+      local name = Option[1]
+      selectedPlayerName = name:gsub(" %[%U+%]", ""):gsub("🔴 ", ""):gsub("🔵 ", "")
+   end,
 })
 
-local function refreshPlayerLists()
-    local names = {}
+local tpDropdown = MiscTab:CreateDropdown({
+   Name = "Выбрать игрока для Телепорта",
+   Options = {"[Обновите список]"},
+   CurrentOption = {"[Обновите список]"},
+   MultipleOptions = false,
+   Callback = function(Option) 
+      local name = Option[1]
+      tpPlayerName = name:gsub(" %[%U+%]", ""):gsub("🔴 ", ""):gsub("🔵 ", "")
+   end,
+})
+
+local function refreshSortedPlayerLists()
+    local murderers = {}
+    local sheriffs = {}
+    local innocents = {}
+
     for _, p in ipairs(game.Players:GetPlayers()) do
-        if p ~= player then table.insert(names, p.Name) end
+        if p ~= player then
+            local char = p.Character
+            if char and (char:FindFirstChild("Knife") or p.Backpack:FindFirstChild("Knife")) then
+                table.insert(murderers, "🔴 " .. p.Name .. " [MURDER]")
+            elseif char and (char:FindFirstChild("Gun") or p.Backpack:FindFirstChild("Gun")) then
+                table.insert(sheriffs, "🔵 " .. p.Name .. " [SHERIFF]")
+            else
+                table.insert(innocents, p.Name)
+            end
+        end
     end
-    playerDropdown:Refresh(names)
+
+    local sortedList = {}
+    for _, m in ipairs(murderers) do table.insert(sortedList, m) end
+    for _, s in ipairs(sheriffs) do table.insert(sortedList, s) end
+    for _, i in ipairs(innocents) do table.insert(sortedList, i) end
+
+    if #sortedList == 0 then sortedList = {"Никого нет"} end
+
+    playerDropdown:Refresh(sortedList)
+    tpDropdown:Refresh(sortedList)
 end
 
 FlingTab:CreateButton({
-   Name = "🔄 Обновить списки игроков",
-   Callback = function() refreshPlayerLists() end,
+   Name = "🔄 Обновить списки игроков (Сортировка ролей)",
+   Callback = function() 
+      refreshSortedPlayerLists()
+      Rayfield:Notify({Title = "Списки обновлены", Content = "Убийца свершу (Красный), Шериф второй (Синий)", Duration = 2})
+   end,
 })
 
 FlingTab:CreateToggle({
@@ -177,7 +226,7 @@ FlingTab:CreateToggle({
          if targetPlr then
             startFlingLoop(function() return targetPlr end, function() return isFlingingSingle end, 10)
          else
-            Rayfield:Notify({Title = "Ошибка", Content = "Выберите игрока!", Duration = 2})
+            Rayfield:Notify({Title = "Ошибка", Content = "Сначала выберите игрока из списка!", Duration = 2})
          end
       else emergencyStop() end
    end,
@@ -216,7 +265,7 @@ FlingTab:CreateToggle({
 FlingTab:CreateSection("Пассивная Защита & Крутилка")
 
 FlingTab:CreateToggle({
-   Name = "🌪️ Крутилка-Аура (Ходишь нормально, касание = вылет)",
+   Name = "🌪️ Крутилка-Аура (Безопасная для себя)",
    CurrentValue = false,
    Callback = function(Value)
       isSpinAuraEnabled = Value
@@ -227,18 +276,26 @@ FlingTab:CreateToggle({
    end,
 })
 
--- Логика Крутилки
+-- Фиксированная Безопасная Крутилка
 RunService.Heartbeat:Connect(function()
     if not isSpinAuraEnabled or isFlingingSingle or isFlingingAll then return end
     local char, hum, root = getCharacter()
     if not root or not hum then return end
 
-    -- Принудительное вращение физического тела
-    root.AssemblyAngularVelocity = Vector3.new(0, 99999, 0)
+    -- Принудительное вращение ТОЛЬКО угловой физики
+    root.AssemblyAngularVelocity = Vector3.new(0, 95000, 0)
     
-    -- Разрешаем коллизии для соприкосновения
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then part.CanCollide = true end
+    -- Кастомная передача импульса чужим телам без вылета самого себя
+    for _, otherPlayer in ipairs(game.Players:GetPlayers()) do
+        if otherPlayer ~= player and otherPlayer.Character then
+            local otherRoot = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if otherRoot then
+                local dist = (root.Position - otherRoot.Position).Magnitude
+                if dist < 4.5 then
+                    otherRoot.AssemblyLinearVelocity = Vector3.new(999999, 999999, 999999)
+                end
+            end
+        end
     end
 end)
 
@@ -350,15 +407,13 @@ RunService.RenderStepped:Connect(function()
             local hrp = char:FindFirstChild("HumanoidRootPart")
             
             if hrp then
-                -- Определяем роль и цвет
-                local color = Color3.fromRGB(0, 255, 100) -- Невинный (Зеленый)
+                local color = Color3.fromRGB(0, 255, 100)
                 if char:FindFirstChild("Knife") or plr.Backpack:FindFirstChild("Knife") then
-                    color = Color3.fromRGB(255, 0, 0) -- Мардер (Красный)
+                    color = Color3.fromRGB(255, 0, 0)
                 elseif char:FindFirstChild("Gun") or plr.Backpack:FindFirstChild("Gun") then
-                    color = Color3.fromRGB(0, 150, 255) -- Шериф (Синий)
+                    color = Color3.fromRGB(0, 150, 255)
                 end
 
-                -- Highlight (Силуэт)
                 local hl = char:FindFirstChild("MM2_Highlight")
                 if not hl then
                     hl = Instance.new("Highlight")
@@ -370,7 +425,6 @@ RunService.RenderStepped:Connect(function()
                 hl.FillTransparency = 0.4
                 hl.OutlineTransparency = 0
 
-                -- Name & Distance Billboard
                 local bb = char:FindFirstChild("MM2_NameESP")
                 if not bb then
                     bb = Instance.new("BillboardGui")
@@ -401,16 +455,8 @@ end)
 -- ==================== Вкладка: Телепорт & Разное ====================
 MiscTab:CreateSection("Телепортация")
 
-local tpDropdown = MiscTab:CreateDropdown({
-   Name = "Выбрать игрока для ТП",
-   Options = {"Никого"},
-   CurrentOption = {"Никого"},
-   MultipleOptions = false,
-   Callback = function(Option) tpPlayerName = Option[1] end,
-})
-
 MiscTab:CreateButton({
-   Name = "⚡ Телепортироваться к игроку",
+   Name = "⚡ Телепортироваться к выбранному игроку",
    Callback = function()
       local targetPlr = game.Players:FindFirstChild(tpPlayerName or "")
       local _, _, root = getCharacter()
@@ -418,7 +464,7 @@ MiscTab:CreateButton({
           root.CFrame = targetPlr.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
           Rayfield:Notify({Title = "Телепорт", Content = "ТП к " .. targetPlr.Name, Duration = 1.5})
       else
-          Rayfield:Notify({Title = "Ошибка", Content = "Игрок не найден!", Duration = 2})
+          Rayfield:Notify({Title = "Ошибка", Content = "Выбери игрока из списка!", Duration = 2})
       end
    end,
 })
@@ -426,18 +472,18 @@ MiscTab:CreateButton({
 MiscTab:CreateSection("Движение и Физика")
 
 MiscTab:CreateToggle({
-   Name = "🐰 Bunny Hop (Авто-прыжки)",
+   Name = "🐰 Bunny Hop (Прыгает при зажатом пробеле/прыжке)",
    CurrentValue = false,
    Callback = function(Value) bunnyHopEnabled = Value end,
 })
 
--- Логика Bunny Hop
-RunService.RenderStepped:Connect(function()
+-- Исправленный Рабочий Bunny Hop
+RunService.Stepped:Connect(function()
     if bunnyHopEnabled then
-        local char, hum, root = getCharacter()
-        if hum and hum.FloorMaterial ~= Enum.Material.Air then
+        local _, hum, _ = getCharacter()
+        if hum and (UserInputService:IsKeyDown(Enum.KeyCode.Space) or hum.FloorMaterial ~= Enum.Material.Air) then
             if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                hum:ChangeState(Enum.HumanoidStateType.Jumping)
+                hum.Jump = true
             end
         end
     end
@@ -479,7 +525,7 @@ MiscTab:CreateToggle({
 
 -- ==================== ОБРАБОТЧИКИ СОБЫТИЙ ====================
 
--- 1. Цикл Noclip & Бессмертие при автофарме
+-- 1. Цикл Noclip & Бессмертие
 RunService.Stepped:Connect(function()
     if autoFarmEnabled then
         local char, hum = getCharacter()
@@ -687,9 +733,9 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- Автообновление списков при входе/выходе игроков
-game.Players.PlayerAdded:Connect(refreshPlayerLists)
-game.Players.PlayerRemoving:Connect(refreshPlayerLists)
-refreshPlayerLists()
+-- Авто-обновление списков при входе игроков
+game.Players.PlayerAdded:Connect(refreshSortedPlayerLists)
+game.Players.PlayerRemoving:Connect(refreshSortedPlayerLists)
+refreshSortedPlayerLists()
 
-Rayfield:Notify({Title = "⚡ MM2 Ultimate V27.2", Content = "Все функции (Highlight ESP, Аура, ТП, BHop) готовы!", Duration = 4})
+Rayfield:Notify({Title = "MM2 Ultimate V27.3", Content = "Сортировка ролей и фикс Крутилки/BHop готовы!", Duration = 3})
