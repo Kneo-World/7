@@ -243,7 +243,6 @@ VisualsTab:CreateToggle({
 
 -- ==================== ДВИЖОК ЭФФЕКТОВ ESP ====================
 
--- Создание крестика
 local crosshairGui = Instance.new("ScreenGui", game.CoreGui)
 crosshairGui.Name = "V28_CrosshairGui"
 crosshairGui.Enabled = false
@@ -266,17 +265,14 @@ lineV.Position = UDim2.new(0.5, -1, 0.5, -8)
 lineV.BackgroundColor3 = Color3.fromRGB(0, 255, 200)
 lineV.BorderSizePixel = 0
 
--- Папка для Tracers
 local tracersFolder = Instance.new("Folder", game.CoreGui)
 tracersFolder.Name = "V28_TracersFolder"
 
 RunService.RenderStepped:Connect(function()
-    -- Кастомный FOV
     if customFovEnabled then
         Camera.FieldOfView = targetFovValue
     end
 
-    -- Очистка Tracers
     tracersFolder:ClearAllChildren()
 
     for _, plr in ipairs(game.Players:GetPlayers()) do
