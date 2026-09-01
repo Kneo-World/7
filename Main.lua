@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V29.0 (FIXED ALL ESP & TRACERS & VISUALS)
+-- MM2 ULTIMATE V30.0 (DIRECT DRAWING ENGINE - 100% ESP FIX)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -8,7 +8,6 @@ local player = game.Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Camera = Workspace.CurrentCamera
 
 -- ========== Переменные состояний ==========
@@ -25,8 +24,8 @@ local noclipEnabled = false
 local silentAimEnabled = false
 local maxAntiFlingEnabled = false
 
--- Visuals Flags
-local espHighlightEnabled = false
+-- Visual Flags
+local espInfoEnabled = false
 local espBoxesEnabled = false
 local espTracersEnabled = false
 local customCrosshairEnabled = false
@@ -40,11 +39,6 @@ local safePointCFrame = nil
 
 local flingNameMap = {}
 local tpNameMap = {}
-
--- Папка для хранения визуалов ESP
-local espContainer = Workspace:FindFirstChild("V29_ESP_Folder") or Instance.new("Folder")
-espContainer.Name = "V29_ESP_Folder"
-espContainer.Parent = Workspace
 
 -- ========== Вспомогательные функции ==========
 local function getCharacter()
@@ -137,8 +131,8 @@ end
 
 -- ========== ОКНО RAYFIELD ==========
 local Window = Rayfield:CreateWindow({
-   Name = "✨ MM2 Ultimate V29.0 (ESP Fix Edition)",
-   LoadingTitle = "Загрузка UI & Полноценного ESP...",
+   Name = "✨ MM2 Ultimate V30.0 (Direct Render Engine)",
+   LoadingTitle = "Загрузка UI & Drawing ESP...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
@@ -151,30 +145,24 @@ local CombatTab = Window:CreateTab("🎯 Аим & Бой", 4483362458)
 local MiscTab = Window:CreateTab("⚙️ Разное & Настройки", 4483362458)
 
 -- ==================== Вкладка: ВИЗУАЛ & ESP ====================
-VisualsTab:CreateSection("🔥 Основной ESP (Работает на всех)")
+VisualsTab:CreateSection("🔥 Drawing ESP (Прямой рендер поверх экрана)")
 
 VisualsTab:CreateToggle({
-   Name = "✨ Advanced Chams & Info (Ники/Роли)",
+   Name = "📜 Имена + Роли + Дистанция",
    CurrentValue = false,
-   Callback = function(Value)
-      espHighlightEnabled = Value
-   end,
+   Callback = function(Value) espInfoEnabled = Value end,
 })
 
 VisualsTab:CreateToggle({
-   Name = "📦 3D Box ESP (Объёмные боксы на всех)",
+   Name = "📦 2D / 3D Боксы (Boxes)",
    CurrentValue = false,
-   Callback = function(Value)
-      espBoxesEnabled = Value
-   end,
+   Callback = function(Value) espBoxesEnabled = Value end,
 })
 
 VisualsTab:CreateToggle({
-   Name = "📏 Snaplines / Tracers (Линии от экрана)",
+   Name = "📏 Snaplines / Tracers (Линии к игрокам)",
    CurrentValue = false,
-   Callback = function(Value)
-      espTracersEnabled = Value
-   end,
+   Callback = function(Value) espTracersEnabled = Value end,
 })
 
 VisualsTab:CreateToggle({
@@ -200,129 +188,143 @@ VisualsTab:CreateSlider({
 VisualsTab:CreateToggle({
    Name = "🎯 Кастомный Крестик (Crosshair)",
    CurrentValue = false,
-   Callback = function(Value)
-      customCrosshairEnabled = Value
-      local gui = game.CoreGui:FindFirstChild("V29_CrosshairGui")
-      if gui then gui.Enabled = Value end
-   end,
+   Callback = function(Value) customCrosshairEnabled = Value end,
 })
 
--- ==================== НОВЫЙ СВЕРХСТАБИЛЬНЫЙ ДВИЖОК ESP ====================
+-- ==================== ПРЯМОЙ DRAWING ESP ДВИЖОК ====================
 
-local crosshairGui = Instance.new("ScreenGui", game.CoreGui)
-crosshairGui.Name = "V29_CrosshairGui"
-crosshairGui.Enabled = false
+local ESP_Objects = {}
 
-local chCenter = Instance.new("Frame", crosshairGui)
-chCenter.Size = UDim2.new(0, 4, 0, 4)
-chCenter.Position = UDim2.new(0.5, -2, 0.5, -2)
-chCenter.BackgroundColor3 = Color3.fromRGB(0, 255, 200)
-chCenter.BorderSizePixel = 0
+local function createEspForPlayer(plr)
+    if plr == player then return end
+    
+    local objects = {
+        Tracer = Drawing.new("Line"),
+        Box = Drawing.new("Square"),
+        Text = Drawing.new("Text")
+    }
 
-local lineH = Instance.new("Frame", crosshairGui)
-lineH.Size = UDim2.new(0, 16, 0, 2)
-lineH.Position = UDim2.new(0.5, -8, 0.5, -1)
-lineH.BackgroundColor3 = Color3.fromRGB(0, 255, 200)
-lineH.BorderSizePixel = 0
+    -- Настройки линий
+    objects.Tracer.Thickness = 1.5
+    objects.Tracer.Transparency = 1
+    objects.Tracer.Visible = false
 
-local lineV = Instance.new("Frame", crosshairGui)
-lineV.Size = UDim2.new(0, 2, 0, 16)
-lineV.Position = UDim2.new(0.5, -1, 0.5, -8)
-lineV.BackgroundColor3 = Color3.fromRGB(0, 255, 200)
-lineV.BorderSizePixel = 0
+    -- Настройки бокса
+    objects.Box.Thickness = 1.5
+    objects.Box.Filled = false
+    objects.Box.Transparency = 1
+    objects.Box.Visible = false
 
--- Кастомный очищаемый слой для линий через CylinderHandleAdornment/Line
-local tracerFolder = Instance.new("Folder", game.CoreGui)
-tracerFolder.Name = "V29_Tracers"
+    -- Настройки текста
+    objects.Text.Size = 14
+    objects.Text.Center = true
+    objects.Text.Outline = true
+    objects.Text.Font = 2
+    objects.Text.Visible = false
+
+    ESP_Objects[plr] = objects
+end
+
+local function removeEspForPlayer(plr)
+    if ESP_Objects[plr] then
+        for _, obj in pairs(ESP_Objects[plr]) do
+            if obj and obj.Remove then obj:Remove() end
+        end
+        ESP_Objects[plr] = nil
+    end
+end
+
+for _, plr in ipairs(game.Players:GetPlayers()) do
+    createEspForPlayer(plr)
+end
+
+game.Players.PlayerAdded:Connect(createEspForPlayer)
+game.Players.PlayerRemoving:Connect(removeEspForPlayer)
+
+-- Кастомный прицел
+local crossLineH = Drawing.new("Line")
+local crossLineV = Drawing.new("Line")
+crossLineH.Thickness = 2
+crossLineH.Color = Color3.fromRGB(0, 255, 200)
+crossLineV.Thickness = 2
+crossLineV.Color = Color3.fromRGB(0, 255, 200)
 
 RunService.RenderStepped:Connect(function()
     if customFovEnabled then Camera.FieldOfView = targetFovValue end
-    
-    tracerFolder:ClearAllChildren()
 
-    for _, plr in ipairs(game.Players:GetPlayers()) do
-        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            local char = plr.Character
-            local hrp = char.HumanoidRootPart
-            local color = getRoleColor(plr)
-            local roleText = getRoleName(plr)
+    -- Отрисовка прицела
+    local viewportSize = Camera.ViewportSize
+    local center = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+    if customCrosshairEnabled then
+        crossLineH.From = center - Vector2.new(8, 0)
+        crossLineH.To = center + Vector2.new(8, 0)
+        crossLineH.Visible = true
 
-            -- 1. Chams + Highlight + Billboard Info
-            local hl = char:FindFirstChild("V29_HL")
-            if espHighlightEnabled then
-                if not hl then
-                    hl = Instance.new("Highlight")
-                    hl.Name = "V29_HL"
-                    hl.Parent = char
-                end
-                hl.Enabled = true
-                hl.FillColor = color
-                hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-                hl.FillTransparency = 0.35
-                
-                local bb = char:FindFirstChild("V29_BB")
-                if not bb then
-                    bb = Instance.new("BillboardGui")
-                    bb.Name = "V29_BB"
-                    bb.Size = UDim2.new(0, 160, 0, 40)
-                    bb.AlwaysOnTop = true
-                    bb.Adornee = hrp
+        crossLineV.From = center - Vector2.new(0, 8)
+        crossLineV.To = center + Vector2.new(0, 8)
+        crossLineV.Visible = true
+    else
+        crossLineH.Visible = false
+        crossLineV.Visible = false
+    end
 
-                    local txt = Instance.new("TextLabel", bb)
-                    txt.Name = "Info"
-                    txt.Size = UDim2.new(1, 0, 1, 0)
-                    txt.BackgroundTransparency = 1
-                    txt.Font = Enum.Font.GothamBold
-                    txt.TextSize = 13
-                    txt.TextStrokeTransparency = 0.1
+    -- Отрисовка ESP
+    for plr, objs in pairs(ESP_Objects) do
+        if plr and plr.Parent and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChild("Head") then
+            local hrp = plr.Character.HumanoidRootPart
+            local head = plr.Character.Head
+            
+            local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            local headPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.8, 0))
+            local legPos = Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
 
-                    bb.Parent = char
-                end
-                
+            if onScreen then
+                local color = getRoleColor(plr)
+                local roleText = getRoleName(plr)
                 local _, _, myRoot = getCharacter()
                 local dist = myRoot and math.floor((myRoot.Position - hrp.Position).Magnitude) or 0
-                bb.Info.TextColor3 = color
-                bb.Info.Text = string.format("%s [%s]\n%d м", plr.Name, roleText, dist)
-            else
-                if hl then hl.Enabled = false end
-                local bb = char:FindFirstChild("V29_BB")
-                if bb then bb:Destroy() end
-            end
 
-            -- 2. 3D Box ESP (SelectionBox)
-            local box = char:FindFirstChild("V29_BOX")
-            if espBoxesEnabled then
-                if not box then
-                    box = Instance.new("SelectionBox")
-                    box.Name = "V29_BOX"
-                    box.LineThickness = 0.05
-                    box.Adornee = char
-                    box.Parent = char
+                -- 1. Tracers (Линии)
+                if espTracersEnabled then
+                    objs.Tracer.From = Vector2.new(viewportSize.X / 2, viewportSize.Y)
+                    objs.Tracer.To = Vector2.new(hrpPos.X, hrpPos.Y)
+                    objs.Tracer.Color = color
+                    objs.Tracer.Visible = true
+                else
+                    objs.Tracer.Visible = false
                 end
-                box.Visible = true
-                box.Color3 = color
-            else
-                if box then box.Visible = false end
-            end
 
-            -- 3. Snaplines / Tracers (Линии от низа экрана)
-            if espTracersEnabled then
-                local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
-                if onScreen then
-                    local lineFrame = Instance.new("Frame", tracerFolder)
-                    lineFrame.BorderSizePixel = 0
-                    lineFrame.BackgroundColor3 = color
-
-                    local startPos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-                    local endPos = Vector2.new(screenPos.X, screenPos.Y)
-                    local distance = (endPos - startPos).Magnitude
-
-                    lineFrame.Size = UDim2.new(0, distance, 0, 2)
-                    lineFrame.Position = UDim2.new(0, startPos.X, 0, startPos.Y)
-                    lineFrame.AnchorPoint = Vector2.new(0, 0.5)
-                    lineFrame.Rotation = math.deg(math.atan2(endPos.Y - startPos.Y, endPos.X - startPos.X))
+                -- 2. Box (Боксы)
+                if espBoxesEnabled then
+                    local boxHeight = math.abs(headPos.Y - legPos.Y)
+                    local boxWidth = boxHeight * 0.65
+                    
+                    objs.Box.Size = Vector2.new(boxWidth, boxHeight)
+                    objs.Box.Position = Vector2.new(hrpPos.X - (boxWidth / 2), headPos.Y)
+                    objs.Box.Color = color
+                    objs.Box.Visible = true
+                else
+                    objs.Box.Visible = false
                 end
+
+                -- 3. Text Info (Ники/Роли)
+                if espInfoEnabled then
+                    objs.Text.Position = Vector2.new(hrpPos.X, headPos.Y - 18)
+                    objs.Text.Text = string.format("%s [%s] | %d m", plr.Name, roleText, dist)
+                    objs.Text.Color = color
+                    objs.Text.Visible = true
+                else
+                    objs.Text.Visible = false
+                end
+            else
+                objs.Tracer.Visible = false
+                objs.Box.Visible = false
+                objs.Text.Visible = false
             end
+        else
+            objs.Tracer.Visible = false
+            objs.Box.Visible = false
+            objs.Text.Visible = false
         end
     end
 end)
@@ -625,26 +627,24 @@ RunService.Stepped:Connect(function()
 end)
 
 -- Drop Gun ESP Marker
-local gunEspFolder = Instance.new("Folder", game.CoreGui)
+local gunEspText = Drawing.new("Text")
+gunEspText.Size = 16
+gunEspText.Center = true
+gunEspText.Outline = true
+gunEspText.Color = Color3.fromRGB(255, 230, 0)
+gunEspText.Visible = false
+
 RunService.RenderStepped:Connect(function()
-    gunEspFolder:ClearAllChildren()
     local gunDrop = workspace:FindFirstChild("GunDrop", true) or workspace:FindFirstChild("Gun", true)
     local _, _, root = getCharacter()
 
-    if gunDrop and gunDrop:IsA("BasePart") then
-        if gunEspEnabled then
-            local bb = Instance.new("BillboardGui", gunEspFolder)
-            bb.Adornee = gunDrop
-            bb.Size = UDim2.new(0, 140, 0, 30)
-            bb.AlwaysOnTop = true
-            local txt = Instance.new("TextLabel", bb)
-            txt.Size = UDim2.new(1, 0, 1, 0)
-            txt.BackgroundTransparency = 1
-            txt.TextColor3 = Color3.fromRGB(255, 230, 0)
-            txt.Font = Enum.Font.GothamBold
-            txt.TextSize = 13
-            txt.Text = "🔫 ПИСТОЛЕТ ЛЕЖИТ!"
-        end
+    if gunDrop and gunDrop:IsA("BasePart") and gunEspEnabled then
+        local pos, onScreen = Camera:WorldToViewportPoint(gunDrop.Position)
+        if onScreen then
+            gunEspText.Position = Vector2.new(pos.X, pos.Y)
+            gunEspText.Text = "🔫 ПИСТОЛЕТ ЛЕЖИТ!"
+            gunEspText.Visible = true
+        else gunEspText.Visible = false end
 
         if autoPickGunEnabled and root then
             if firetouchinterest then
@@ -653,6 +653,8 @@ RunService.RenderStepped:Connect(function()
                 firetouchinterest(root, gunDrop, 1)
             else root.CFrame = gunDrop.CFrame end
         end
+    else
+        gunEspText.Visible = false
     end
 end)
 
@@ -674,8 +676,4 @@ RunService.Heartbeat:Connect(function()
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 end)
 
-game.Players.PlayerAdded:Connect(refreshSortedPlayerLists)
-game.Players.PlayerRemoving:Connect(refreshSortedPlayerLists)
-refreshSortedPlayerLists()
-
-Rayfield:Notify({Title = "MM2 Ultimate V29.0", Content = "Фикс ESP, линий и 3D-боксов успешно применён!", Duration = 3})
+Rayfield:Notify({Title = "MM2 Ultimate V30.0", Content = "Drawing ESP активирован! Теперь видно ВСЕХ!", Duration = 3})
