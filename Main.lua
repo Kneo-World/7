@@ -28,6 +28,7 @@ local ghostModeEnabled = false
 local antiKillEnabled = false
 local noclipEnabled = false
 local silentAimEnabled = false
+local maxAntiFlingEnabled = false -- Новая переменная для Anti-Fling
 local selectedPlayer = nil
 local bav = nil
 local originalCFrame = nil
@@ -116,7 +117,7 @@ scroll.Position = UDim2.new(0, 6, 0, 46)
 scroll.BackgroundTransparency = 1
 scroll.ScrollBarThickness = 3
 scroll.ScrollBarImageColor3 = Color3.fromRGB(0, 230, 255)
-scroll.CanvasSize = UDim2.new(0, 0, 0, 620)
+scroll.CanvasSize = UDim2.new(0, 0, 0, 660)
 scroll.ClipsDescendants = true
 scroll.Parent = mainFrame
 
@@ -658,7 +659,51 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- ========== 8. NOCLIP ==========
+-- ========== 8. MAX ANTI-FLING + COUNTER-FLING ==========
+createButton("🛡️ Max Anti-Fling: ВЫКЛ", Color3.fromRGB(32, 35, 48), function(btn)
+    maxAntiFlingEnabled = not maxAntiFlingEnabled
+    btn.Text = maxAntiFlingEnabled and "🛡️ Max Anti-Fling: ВКЛ ✅" or "🛡️ Max Anti-Fling: ВЫКЛ"
+    btn.BackgroundColor3 = maxAntiFlingEnabled and Color3.fromRGB(180, 50, 0) or Color3.fromRGB(32, 35, 48)
+end)
+
+RunService.Heartbeat:Connect(function()
+    if not maxAntiFlingEnabled then return end
+    local char, hum, root = getCharacter()
+    if not char or not root or not hum then return end
+
+    -- Сброс сторонних импульсов
+    if root.AssemblyLinearVelocity.Magnitude > 50 then
+        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+    end
+    if root.AssemblyAngularVelocity.Magnitude > 50 then
+        root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    end
+
+    -- Блок сбивания с ног
+    hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+
+    -- Контратака на близко подошедших рванщиков
+    for _, otherPlayer in ipairs(game.Players:GetPlayers()) do
+        if otherPlayer ~= player and otherPlayer.Character then
+            local otherRoot = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if otherRoot then
+                for _, part in ipairs(otherPlayer.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then part.CanCollide = false end
+                end
+
+                local dist = (root.Position - otherRoot.Position).Magnitude
+                local otherSpeed = otherRoot.AssemblyLinearVelocity.Magnitude + otherRoot.AssemblyAngularVelocity.Magnitude
+                if dist < 8 and otherSpeed > 100 then
+                    otherRoot.AssemblyLinearVelocity = Vector3.new(999999, 999999, 999999)
+                    otherRoot.AssemblyAngularVelocity = Vector3.new(999999, 999999, 999999)
+                end
+            end
+        end
+    end
+end)
+
+-- ========== 9. NOCLIP ==========
 createButton("🚶 Noclip (Сквозь стены): ВЫКЛ", Color3.fromRGB(32, 35, 48), function(btn)
     noclipEnabled = not noclipEnabled
     btn.Text = noclipEnabled and "🚶 Noclip: ВКЛ ✅" or "🚶 Noclip: ВЫКЛ"
