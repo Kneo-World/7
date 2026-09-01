@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V27.5 (ANTI-FLING & JUMP FIX)
+-- MM2 ULTIMATE V27.6 (DROPDOWN & ROLES FIX)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -23,13 +23,17 @@ local ghostModeEnabled = false
 local antiKillEnabled = false
 local noclipEnabled = false
 local silentAimEnabled = false
-local maxAntiFlingEnabled = false -- По умолчанию выключено для проверки
+local maxAntiFlingEnabled = false
 
 local selectedPlayerName = nil
 local tpPlayerName = nil
 local originalCFrame = nil
 local safePointCFrame = nil
 local lastShotTime = 0
+
+-- Хранилище связок: "Отображаемый текст в меню" -> "Настоящий Plr.Name"
+local flingNameMap = {}
+local tpNameMap = {}
 
 -- ========== Вспомогательные функции ==========
 local function getCharacter()
@@ -38,14 +42,6 @@ local function getCharacter()
         return char, char.Humanoid, char.HumanoidRootPart
     end
     return nil, nil, nil
-end
-
-local function cleanPlayerName(rawText)
-    if not rawText then return nil end
-    local cleaned = rawText:gsub("%s*%[%U+%]%s*", "")
-    cleaned = cleaned:gsub("^[^%w_]+", "")
-    cleaned = cleaned:match("^%s*(.-)%s*$")
-    return cleaned
 end
 
 local function getCoinCount()
@@ -149,7 +145,7 @@ end
 
 -- ========== ОКНО RAYFIELD ==========
 local Window = Rayfield:CreateWindow({
-   Name = "⚡ MM2 Ultimate V27.5",
+   Name = "⚡ MM2 Ultimate V27.6",
    LoadingTitle = "Загрузка скрипта...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
@@ -171,7 +167,8 @@ local playerDropdown = FlingTab:CreateDropdown({
    CurrentOption = {"Загрузка..."},
    MultipleOptions = false,
    Callback = function(Option) 
-      selectedPlayerName = cleanPlayerName(Option[1])
+      local selectedText = Option[1]
+      selectedPlayerName = flingNameMap[selectedText]
    end,
 })
 
@@ -181,24 +178,40 @@ local tpDropdown = MiscTab:CreateDropdown({
    CurrentOption = {"Загрузка..."},
    MultipleOptions = false,
    Callback = function(Option) 
-      tpPlayerName = cleanPlayerName(Option[1])
+      local selectedText = Option[1]
+      tpPlayerName = tpNameMap[selectedText]
    end,
 })
 
+-- Исправленное авто-обновление списков без ошибок парсинга
 local function refreshSortedPlayerLists()
     local murderers = {}
     local sheriffs = {}
     local innocents = {}
 
+    flingNameMap = {}
+    tpNameMap = {}
+
     for _, p in ipairs(game.Players:GetPlayers()) do
         if p ~= player then
             local char = p.Character
+            local displayName = p.Name
+            
             if char and (char:FindFirstChild("Knife") or p.Backpack:FindFirstChild("Knife")) then
-                table.insert(murderers, "🔴 " .. p.Name .. " [MURDER]")
+                displayName = "🔴 " .. p.Name .. " [MURDER]"
             elseif char and (char:FindFirstChild("Gun") or p.Backpack:FindFirstChild("Gun")) then
-                table.insert(sheriffs, "🔵 " .. p.Name .. " [SHERIFF]")
+                displayName = "🔵 " .. p.Name .. " [SHERIFF]"
+            end
+
+            flingNameMap[displayName] = p.Name
+            tpNameMap[displayName] = p.Name
+
+            if displayName:find("%[MURDER%]") then
+                table.insert(murderers, displayName)
+            elseif displayName:find("%[SHERIFF%]") then
+                table.insert(sheriffs, displayName)
             else
-                table.insert(innocents, p.Name)
+                table.insert(innocents, displayName)
             end
         end
     end
@@ -214,10 +227,11 @@ local function refreshSortedPlayerLists()
     tpDropdown:Refresh(sortedList)
 end
 
+-- Автоматический цикл обновления каждые 2 секунды
 task.spawn(function()
     while true do
         refreshSortedPlayerLists()
-        task.wait(3)
+        task.wait(2)
     end
 end)
 
@@ -304,7 +318,6 @@ end)
 
 FlingTab:CreateButton({ Name = "🛑 ЭКСТРЕННЫЙ СТОП РВАНКИ", Callback = function() emergencyStop() end })
 
--- Исправленный Toggle для Anti-Fling
 FlingTab:CreateToggle({
    Name = "🛡️ Max Anti-Fling",
    CurrentValue = false,
@@ -312,7 +325,6 @@ FlingTab:CreateToggle({
       maxAntiFlingEnabled = Value
       local _, hum, _ = getCharacter()
       if hum then
-          -- Возвращаем нормальные состояния физики персонажа при выключении
           hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
           hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
       end
@@ -706,13 +718,12 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- Полностью исправленная функция Anti-Fling Protect
+-- Anti-Fling Protect
 RunService.Heartbeat:Connect(function()
     if not maxAntiFlingEnabled or isFlingingSingle or isFlingingAll or autoFarmEnabled or isSpinAuraEnabled then return end
     local char, hum, root = getCharacter()
     if not char or not root or not hum then return end
 
-    -- Проверяем только аномально высокую горизонтальную скорость (X/Z), сохраняя Y (прыжки)
     local horizVel = Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z)
     if horizVel.Magnitude > 120 then 
         root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0) 
@@ -743,4 +754,4 @@ game.Players.PlayerAdded:Connect(refreshSortedPlayerLists)
 game.Players.PlayerRemoving:Connect(refreshSortedPlayerLists)
 refreshSortedPlayerLists()
 
-Rayfield:Notify({Title = "MM2 Ultimate V27.5", Content = "Фикс Anti-Fling и прыжков применён!", Duration = 3})
+Rayfield:Notify({Title = "MM2 Ultimate V27.6", Content = "Списки и выбор ролей полностью исправлены!", Duration = 3})
