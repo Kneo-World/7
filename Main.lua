@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V26.9.2 (AUTO 40 COINS MURDERER FLING)
+-- MM2 ULTIMATE V26.9.2 (AUTO 40 COINS MURDERER FLING) - REDESIGNED
 -- ============================================================
 
 local player = game.Players.LocalPlayer
@@ -7,6 +7,7 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local function getCharacter()
     local char = player.Character
@@ -16,7 +17,7 @@ local function getCharacter()
     return nil, nil, nil
 end
 
--- Состояния функций
+-- Состояния функций (оригинальные переменные)
 local isFlingingSingle = false
 local isFlingingAll = false
 local espEnabled = false
@@ -32,82 +33,138 @@ local bav = nil
 local originalCFrame = nil
 local safePointCFrame = nil
 
--- ========== GUI Setup ==========
+-- ========== GUI Setup (New Modern Design) ==========
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "MM2_Mobile_Panel_V26_9_2"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
+-- Кнопка Toggle (Скрытие / Показ)
 local toggleGuiBtn = Instance.new("TextButton")
-toggleGuiBtn.Size = UDim2.new(0, 130, 0, 36)
-toggleGuiBtn.Position = UDim2.new(0.5, -65, 0, 8)
-toggleGuiBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 35)
-toggleGuiBtn.TextColor3 = Color3.fromRGB(0, 255, 200)
+toggleGuiBtn.Size = UDim2.new(0, 140, 0, 38)
+toggleGuiBtn.Position = UDim2.new(0.5, -70, 0, 10)
+toggleGuiBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 24)
+toggleGuiBtn.TextColor3 = Color3.fromRGB(0, 230, 255)
 toggleGuiBtn.Text = "👁️ HIDE / SHOW"
 toggleGuiBtn.Font = Enum.Font.GothamBold
-toggleGuiBtn.TextScaled = true
+toggleGuiBtn.TextSize = 13
 toggleGuiBtn.Parent = screenGui
-local tgCorner = Instance.new("UICorner") tgCorner.CornerRadius = UDim.new(0, 10) tgCorner.Parent = toggleGuiBtn
-local tgStroke = Instance.new("UIStroke") tgStroke.Color = Color3.fromRGB(0, 255, 200) tgStroke.Thickness = 2 tgStroke.Parent = toggleGuiBtn
 
+local tgCorner = Instance.new("UICorner") tgCorner.CornerRadius = UDim.new(0, 10) tgCorner.Parent = toggleGuiBtn
+local tgStroke = Instance.new("UIStroke") 
+tgStroke.Color = Color3.fromRGB(0, 230, 255) 
+tgStroke.Thickness = 1.5 
+tgStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+tgStroke.Parent = toggleGuiBtn
+
+-- Главный Фрейм
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 270, 0, 380)
-mainFrame.Position = UDim2.new(0.5, -135, 0.5, -190)
-mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-mainFrame.BackgroundTransparency = 0.1
+mainFrame.Size = UDim2.new(0, 280, 0, 420)
+mainFrame.Position = UDim2.new(0.5, -140, 0.5, -210)
+mainFrame.BackgroundColor3 = Color3.fromRGB(18, 19, 26)
+mainFrame.BorderSizePixel = 0
 mainFrame.ClipsDescendants = false
 mainFrame.Parent = screenGui
-local mainCorner = Instance.new("UICorner") mainCorner.CornerRadius = UDim.new(0, 12) mainCorner.Parent = mainFrame
-local mainStroke = Instance.new("UIStroke") mainStroke.Color = Color3.fromRGB(0, 200, 255) mainStroke.Thickness = 2 mainStroke.Parent = mainFrame
+
+local mainCorner = Instance.new("UICorner") mainCorner.CornerRadius = UDim.new(0, 14) mainCorner.Parent = mainFrame
+local mainStroke = Instance.new("UIStroke") 
+mainStroke.Color = Color3.fromRGB(45, 50, 70) 
+mainStroke.Thickness = 1.5 
+mainStroke.Parent = mainFrame
 
 toggleGuiBtn.Activated:Connect(function() mainFrame.Visible = not mainFrame.Visible end)
 
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 30)
-title.BackgroundColor3 = Color3.fromRGB(25, 25, 45)
-title.Text = "⚡ MM2 PANEL V26.9.2"
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Font = Enum.Font.GothamBold
-title.TextScaled = true
-title.Parent = mainFrame
-local titleCorner = Instance.new("UICorner") titleCorner.CornerRadius = UDim.new(0, 12) titleCorner.Parent = title
+-- Шапка (Title Bar)
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 42)
+titleBar.BackgroundColor3 = Color3.fromRGB(25, 27, 38)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+local titleCorner = Instance.new("UICorner") titleCorner.CornerRadius = UDim.new(0, 14) titleCorner.Parent = titleBar
 
+-- Прячем нижние углы шапки
+local titleFix = Instance.new("Frame")
+titleFix.Size = UDim2.new(1, 0, 0, 10)
+titleFix.Position = UDim2.new(0, 0, 1, -10)
+titleFix.BackgroundColor3 = Color3.fromRGB(25, 27, 38)
+titleFix.BorderSizePixel = 0
+titleFix.Parent = titleBar
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -20, 1, 0)
+title.Position = UDim2.new(0, 10, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "⚡ MM2 ULTIMATE V26.9.2"
+title.TextColor3 = Color3.fromRGB(0, 230, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 14
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = titleBar
+
+-- Разделитель под шапкой
+local sep = Instance.new("Frame")
+sep.Size = UDim2.new(1, 0, 0, 1)
+sep.Position = UDim2.new(0, 0, 1, 0)
+sep.BackgroundColor3 = Color3.fromRGB(45, 50, 70)
+sep.BorderSizePixel = 0
+sep.Parent = titleBar
+
+-- Скролл Контейнер
 local scroll = Instance.new("ScrollingFrame")
-scroll.Size = UDim2.new(1, -8, 1, -34)
-scroll.Position = UDim2.new(0, 4, 0, 32)
+scroll.Size = UDim2.new(1, -12, 1, -50)
+scroll.Position = UDim2.new(0, 6, 0, 46)
 scroll.BackgroundTransparency = 1
-scroll.ScrollBarThickness = 5
-scroll.CanvasSize = UDim2.new(0, 0, 0, 560)
-scroll.ClipsDescendants = false
+scroll.ScrollBarThickness = 3
+scroll.ScrollBarImageColor3 = Color3.fromRGB(0, 230, 255)
+scroll.CanvasSize = UDim2.new(0, 0, 0, 620)
+scroll.ClipsDescendants = true
 scroll.Parent = mainFrame
 
 local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0, 5)
+layout.Padding = UDim.new(0, 6)
 layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+layout.SortOrder = Enum.SortOrder.LayoutOrder
 layout.Parent = scroll
 
-local function createButton(text, bgColor, callback)
+-- Вспомогательная функция создания стильных кнопок
+local function createButton(text, defaultColor, callback)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.96, 0, 0, 34)
-    btn.BackgroundColor3 = bgColor
-    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Size = UDim2.new(1, -8, 0, 36)
+    btn.BackgroundColor3 = defaultColor
+    btn.TextColor3 = Color3.fromRGB(240, 240, 240)
     btn.Text = text
-    btn.Font = Enum.Font.GothamBold
-    btn.TextScaled = true
+    btn.Font = Enum.Font.GothamMedium
+    btn.TextSize = 12
+    btn.AutoButtonColor = false
     btn.Parent = scroll
+
     local c = Instance.new("UICorner") c.CornerRadius = UDim.new(0, 8) c.Parent = btn
+    local s = Instance.new("UIStroke") 
+    s.Color = Color3.fromRGB(255, 255, 255) 
+    s.Transparency = 0.9 
+    s.Thickness = 1 
+    s.Parent = btn
+
+    -- Эффект клика
+    btn.MouseButton1Down:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.1), {Size = UDim2.new(0.96, -8, 0, 34)}):Play()
+    end)
+    btn.MouseButton1Up:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.1), {Size = UDim2.new(1, -8, 0, 36)}):Play()
+    end)
+
     btn.Activated:Connect(function() callback(btn) end)
     return btn
 end
 
--- Перетаскивание
+-- Перетаскивание за шапку
 local dragging, dragStart, startPos
-title.InputBegan:Connect(function(input)
+titleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true dragStart = input.Position startPos = mainFrame.Position
     end
 end)
-title.InputEnded:Connect(function(input)
+titleBar.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
 end)
 UserInputService.InputChanged:Connect(function(input)
@@ -119,8 +176,8 @@ end)
 
 -- ========== Выбор Игрока ==========
 local dropdownFrame = Instance.new("Frame")
-dropdownFrame.Size = UDim2.new(0.96, 0, 0, 34)
-dropdownFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 55)
+dropdownFrame.Size = UDim2.new(1, -8, 0, 36)
+dropdownFrame.BackgroundColor3 = Color3.fromRGB(28, 30, 42)
 dropdownFrame.BorderSizePixel = 0
 dropdownFrame.ClipsDescendants = false
 dropdownFrame.Parent = scroll
@@ -128,29 +185,31 @@ local dpCorner = Instance.new("UICorner") dpCorner.CornerRadius = UDim.new(0, 8)
 
 local selectBtn = Instance.new("TextButton")
 selectBtn.Size = UDim2.new(1, 0, 1, 0)
-selectBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 75)
-selectBtn.TextColor3 = Color3.new(1, 1, 1)
+selectBtn.BackgroundTransparency = 1
+selectBtn.TextColor3 = Color3.fromRGB(200, 200, 220)
 selectBtn.Text = "👤 Выбрать игрока..."
-selectBtn.Font = Enum.Font.GothamBold
-selectBtn.TextScaled = true
+selectBtn.Font = Enum.Font.GothamMedium
+selectBtn.TextSize = 12
 selectBtn.Parent = dropdownFrame
-local sbCorner = Instance.new("UICorner") sbCorner.CornerRadius = UDim.new(0, 8) sbCorner.Parent = selectBtn
 
 local listFrame = Instance.new("ScrollingFrame")
-listFrame.Size = UDim2.new(1, 0, 0, 100)
+listFrame.Size = UDim2.new(1, 0, 0, 110)
 listFrame.Position = UDim2.new(0, 0, 1, 4)
-listFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 35)
+listFrame.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
 listFrame.BorderSizePixel = 0
 listFrame.Visible = false
 listFrame.ZIndex = 10
-listFrame.ScrollBarThickness = 4
+listFrame.ScrollBarThickness = 3
+listFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 230, 255)
 listFrame.Parent = dropdownFrame
-local lfCorner = Instance.new("UICorner") lfCorner.CornerRadius = UDim.new(0, 6) lfCorner.Parent = listFrame
+
+local lfCorner = Instance.new("UICorner") lfCorner.CornerRadius = UDim.new(0, 8) lfCorner.Parent = listFrame
+local lfStroke = Instance.new("UIStroke") lfStroke.Color = Color3.fromRGB(45, 50, 70) lfStroke.Parent = listFrame
 
 local listLayout = Instance.new("UIListLayout")
 listLayout.FillDirection = Enum.FillDirection.Vertical
 listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-listLayout.Padding = UDim.new(0, 2)
+listLayout.Padding = UDim.new(0, 3)
 listLayout.Parent = listFrame
 
 local function updatePlayerList()
@@ -163,13 +222,17 @@ local function updatePlayerList()
         if plr ~= player then
             local btn = Instance.new("TextButton")
             btn.Size = UDim2.new(1, -6, 0, 26)
-            btn.BackgroundColor3 = Color3.fromRGB(40, 40, 65)
-            btn.TextColor3 = Color3.new(1, 1, 1)
-            btn.Text = plr.Name
-            btn.Font = Enum.Font.GothamBold
-            btn.TextScaled = true
+            btn.BackgroundColor3 = Color3.fromRGB(32, 35, 50)
+            btn.TextColor3 = Color3.fromRGB(230, 230, 230)
+            btn.Text = "  " .. plr.Name
+            btn.Font = Enum.Font.Gotham
+            btn.TextSize = 11
+            btn.TextXAlignment = Enum.TextXAlignment.Left
             btn.ZIndex = 11
             btn.Parent = listFrame
+            
+            local bCorner = Instance.new("UICorner") bCorner.CornerRadius = UDim.new(0, 5) bCorner.Parent = btn
+
             btn.Activated:Connect(function()
                 selectedPlayer = plr
                 selectBtn.Text = "👤 Цель: " .. plr.Name
@@ -178,7 +241,7 @@ local function updatePlayerList()
             count = count + 1
         end
     end
-    listFrame.CanvasSize = UDim2.new(0, 0, 0, count * 28 + 6)
+    listFrame.CanvasSize = UDim2.new(0, 0, 0, count * 29 + 4)
 end
 
 selectBtn.Activated:Connect(function()
@@ -187,7 +250,7 @@ selectBtn.Activated:Connect(function()
 end)
 
 -- ========== КНОПКА SAFE-ТОЧКИ ==========
-createButton("📌 Поставить Safe-Точку", Color3.fromRGB(80, 50, 150), function(btn)
+createButton("📌 Поставить Safe-Точку", Color3.fromRGB(60, 45, 110), function(btn)
     local _, _, root = getCharacter()
     if root then
         safePointCFrame = root.CFrame
@@ -199,10 +262,10 @@ end)
 
 -- ========== 1. ROLE ESP ==========
 local espFolder = Instance.new("Folder", screenGui)
-createButton("👁️ Role ESP: ВЫКЛ", Color3.fromRGB(40, 40, 60), function(btn)
+createButton("👁️ Role ESP: ВЫКЛ", Color3.fromRGB(32, 35, 48), function(btn)
     espEnabled = not espEnabled
     btn.Text = espEnabled and "👁️ Role ESP: ВКЛ ✅" or "👁️ Role ESP: ВЫКЛ"
-    btn.BackgroundColor3 = espEnabled and Color3.fromRGB(0, 150, 100) or Color3.fromRGB(40, 40, 60)
+    btn.BackgroundColor3 = espEnabled and Color3.fromRGB(15, 110, 80) or Color3.fromRGB(32, 35, 48)
     if not espEnabled then espFolder:ClearAllChildren() end
 end)
 
@@ -216,12 +279,12 @@ RunService.RenderStepped:Connect(function()
         if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
             local char = plr.Character
             local hrp = char.HumanoidRootPart
-            local color = Color3.fromRGB(0, 255, 0)
+            local color = Color3.fromRGB(0, 255, 150)
 
             if char:FindFirstChild("Knife") or plr.Backpack:FindFirstChild("Knife") then
-                color = Color3.fromRGB(255, 0, 0)
+                color = Color3.fromRGB(255, 50, 50)
             elseif char:FindFirstChild("Gun") or plr.Backpack:FindFirstChild("Gun") then
-                color = Color3.fromRGB(0, 150, 255)
+                color = Color3.fromRGB(0, 170, 255)
             end
 
             local bb = Instance.new("BillboardGui", espFolder)
@@ -271,7 +334,7 @@ local function getMurderer()
     return nil
 end
 
--- ========== РВАНКА V25 ENGINE (ОПИСАНИЕ НИЖЕ) ==========
+-- ========== РВАНКА V25 ENGINE ==========
 local function emergencyStop()
     isFlingingSingle = false isFlingingAll = false
     if bav then bav:Destroy() bav = nil end
@@ -330,11 +393,11 @@ local function startFlingLoop(getTargetFunc, isRunningCheck, durationLimit)
     end)
 end
 
--- ========== 2. AUTO FARM COINS (С АВТО-РВАНКОЙ УБИЙЦЫ ПРИ 40 МОНЕТАХ) ==========
-createButton("💰 Auto Farm Coins: ВЫКЛ", Color3.fromRGB(40, 40, 60), function(btn)
+-- ========== 2. AUTO FARM COINS ==========
+createButton("💰 Auto Farm Coins: ВЫКЛ", Color3.fromRGB(32, 35, 48), function(btn)
     autoFarmEnabled = not autoFarmEnabled
     btn.Text = autoFarmEnabled and "💰 Auto Farm Coins: ВКЛ ✅" or "💰 Auto Farm Coins: ВЫКЛ"
-    btn.BackgroundColor3 = autoFarmEnabled and Color3.fromRGB(200, 150, 0) or Color3.fromRGB(40, 40, 60)
+    btn.BackgroundColor3 = autoFarmEnabled and Color3.fromRGB(160, 110, 0) or Color3.fromRGB(32, 35, 48)
 end)
 
 RunService.Stepped:Connect(function()
@@ -363,7 +426,6 @@ task.spawn(function()
                     if murderer and murderer.Character and murderer.Character:FindFirstChild("HumanoidRootPart") then
                         local murdHrp = murderer.Character.HumanoidRootPart
                         
-                        -- Запускаем рванку пока убийца не улетит выше Y > 200 (за карту)
                         isFlingingSingle = true
                         startFlingLoop(
                             function() return murderer end, 
@@ -371,23 +433,20 @@ task.spawn(function()
                                 local mChar = murderer.Character
                                 local mRoot = mChar and mChar:FindFirstChild("HumanoidRootPart")
                                 local mHum = mChar and mChar:FindFirstChild("Humanoid")
-                                -- Работаем пока включен автофарм, убийца жив и не улетел за карту (Y <= 200)
                                 if not autoFarmEnabled or not mRoot or (mHum and mHum.Health <= 0) or mRoot.Position.Y > 200 then
                                     isFlingingSingle = false
                                 end
                                 return isFlingingSingle 
                             end, 
-                            nil -- Без ограничения по времени, пока не вылетит за карту
+                            nil
                         )
 
-                        -- Ждем пока рванка завершится (убийца улетит)
                         while isFlingingSingle and autoFarmEnabled do
                             task.wait(0.2)
                         end
                         emergencyStop()
                     end
 
-                    -- После вылета убийцы возвращаемся на сейф-точку (если есть)
                     if safePointCFrame then
                         local _, _, currentRoot = getCharacter()
                         if currentRoot then
@@ -440,10 +499,10 @@ task.spawn(function()
 end)
 
 -- ========== 3. AIMBOT & AUTO-SHOOT MURDERER ==========
-createButton("🎯 Аимбот на Убийцу: ВЫКЛ", Color3.fromRGB(40, 40, 60), function(btn)
+createButton("🎯 Аимбот на Убийцу: ВЫКЛ", Color3.fromRGB(32, 35, 48), function(btn)
     silentAimEnabled = not silentAimEnabled
     btn.Text = silentAimEnabled and "🎯 Аимбот на Убийцу: ВКЛ ✅" or "🎯 Аимбот на Убийцу: ВЫКЛ"
-    btn.BackgroundColor3 = silentAimEnabled and Color3.fromRGB(0, 180, 200) or Color3.fromRGB(40, 40, 60)
+    btn.BackgroundColor3 = silentAimEnabled and Color3.fromRGB(0, 130, 160) or Color3.fromRGB(32, 35, 48)
 end)
 
 local lastShotTime = 0
@@ -476,7 +535,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ========== 4. KILL ALL (ЗА МАРДЕРА) ==========
-createButton("🔪 KILL ALL (ЗА МАРДЕРА)", Color3.fromRGB(220, 20, 20), function(btn)
+createButton("🔪 KILL ALL (ЗА МАРДЕРА)", Color3.fromRGB(150, 25, 35), function(btn)
     local char, hum, root = getCharacter()
     if not char then return end
 
@@ -510,16 +569,16 @@ createButton("🔪 KILL ALL (ЗА МАРДЕРА)", Color3.fromRGB(220, 20, 20),
 end)
 
 -- ========== 5. DROP GUN ESP & AUTO PICK ==========
-createButton("🔫 Drop Gun ESP: ВЫКЛ", Color3.fromRGB(40, 40, 60), function(btn)
+createButton("🔫 Drop Gun ESP: ВЫКЛ", Color3.fromRGB(32, 35, 48), function(btn)
     gunEspEnabled = not gunEspEnabled
     btn.Text = gunEspEnabled and "🔫 Drop Gun ESP: ВКЛ ✅" or "🔫 Drop Gun ESP: ВЫКЛ"
-    btn.BackgroundColor3 = gunEspEnabled and Color3.fromRGB(0, 150, 200) or Color3.fromRGB(40, 40, 60)
+    btn.BackgroundColor3 = gunEspEnabled and Color3.fromRGB(0, 120, 170) or Color3.fromRGB(32, 35, 48)
 end)
 
-createButton("🧲 Auto Pick Gun: ВЫКЛ", Color3.fromRGB(40, 40, 60), function(btn)
+createButton("🧲 Auto Pick Gun: ВЫКЛ", Color3.fromRGB(32, 35, 48), function(btn)
     autoPickGunEnabled = not autoPickGunEnabled
     btn.Text = autoPickGunEnabled and "🧲 Auto Pick Gun: ВКЛ ✅" or "🧲 Auto Pick Gun: ВЫКЛ"
-    btn.BackgroundColor3 = autoPickGunEnabled and Color3.fromRGB(0, 150, 200) or Color3.fromRGB(40, 40, 60)
+    btn.BackgroundColor3 = autoPickGunEnabled and Color3.fromRGB(0, 120, 170) or Color3.fromRGB(32, 35, 48)
 end)
 
 local gunEspFolder = Instance.new("Folder", screenGui)
@@ -537,7 +596,7 @@ RunService.RenderStepped:Connect(function()
             local txt = Instance.new("TextLabel", bb)
             txt.Size = UDim2.new(1, 0, 1, 0)
             txt.BackgroundTransparency = 1
-            txt.TextColor3 = Color3.fromRGB(255, 255, 0)
+            txt.TextColor3 = Color3.fromRGB(255, 220, 0)
             txt.Font = Enum.Font.GothamBold
             txt.TextSize = 12
             txt.Text = "🔫 ПИСТОЛЕТ ЗДЕСЬ!"
@@ -556,10 +615,10 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ========== 6. GHOST MODE ==========
-createButton("👻 Invisible (Ghost): ВЫКЛ", Color3.fromRGB(40, 40, 60), function(btn)
+createButton("👻 Invisible (Ghost): ВЫКЛ", Color3.fromRGB(32, 35, 48), function(btn)
     ghostModeEnabled = not ghostModeEnabled
     btn.Text = ghostModeEnabled and "👻 Invisible: ВКЛ ✅" or "👻 Invisible: ВЫКЛ"
-    btn.BackgroundColor3 = ghostModeEnabled and Color3.fromRGB(120, 0, 200) or Color3.fromRGB(40, 40, 60)
+    btn.BackgroundColor3 = ghostModeEnabled and Color3.fromRGB(100, 20, 160) or Color3.fromRGB(32, 35, 48)
     
     local char = getCharacter()
     if char then
@@ -572,10 +631,10 @@ createButton("👻 Invisible (Ghost): ВЫКЛ", Color3.fromRGB(40, 40, 60), fun
 end)
 
 -- ========== 7. ANTI-KILL SAFETY ==========
-createButton("🛡️ Anti-Kill Safety: ВЫКЛ", Color3.fromRGB(40, 40, 60), function(btn)
+createButton("🛡️ Anti-Kill Safety: ВЫКЛ", Color3.fromRGB(32, 35, 48), function(btn)
     antiKillEnabled = not antiKillEnabled
     btn.Text = antiKillEnabled and "🛡️ Anti-Kill: ВКЛ ✅" or "🛡️ Anti-Kill: ВЫКЛ"
-    btn.BackgroundColor3 = antiKillEnabled and Color3.fromRGB(200, 0, 100) or Color3.fromRGB(40, 40, 60)
+    btn.BackgroundColor3 = antiKillEnabled and Color3.fromRGB(160, 20, 80) or Color3.fromRGB(32, 35, 48)
 end)
 
 RunService.Heartbeat:Connect(function()
@@ -600,10 +659,10 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- ========== 8. NOCLIP ==========
-createButton("🚶 Noclip (Сквозь стены): ВЫКЛ", Color3.fromRGB(40, 40, 60), function(btn)
+createButton("🚶 Noclip (Сквозь стены): ВЫКЛ", Color3.fromRGB(32, 35, 48), function(btn)
     noclipEnabled = not noclipEnabled
     btn.Text = noclipEnabled and "🚶 Noclip: ВКЛ ✅" or "🚶 Noclip: ВЫКЛ"
-    btn.BackgroundColor3 = noclipEnabled and Color3.fromRGB(0, 180, 255) or Color3.fromRGB(40, 40, 60)
+    btn.BackgroundColor3 = noclipEnabled and Color3.fromRGB(0, 140, 200) or Color3.fromRGB(32, 35, 48)
 end)
 
 RunService.Stepped:Connect(function()
@@ -617,23 +676,23 @@ RunService.Stepped:Connect(function()
     end
 end)
 
-local rvBtn = createButton("💥 РВАНКА ЦЕЛИ (10 СЕК)", Color3.fromRGB(200, 40, 40), function(btn)
+local rvBtn = createButton("💥 РВАНКА ЦЕЛИ (10 СЕК)", Color3.fromRGB(160, 35, 35), function(btn)
     if isFlingingAll then return end
     if not selectedPlayer then
         btn.Text = "⚠️ ВЫБЕРИТЕ ИГРОКА!" task.wait(0.8) btn.Text = "💥 РВАНКА ЦЕЛИ (10 СЕК)" return
     end
     isFlingingSingle = not isFlingingSingle
     if isFlingingSingle then
-        btn.BackgroundColor3 = Color3.fromRGB(40, 180, 40) btn.Text = "🔥 АТАКА..."
+        btn.BackgroundColor3 = Color3.fromRGB(30, 140, 40) btn.Text = "🔥 АТАКА..."
         startFlingLoop(function() return selectedPlayer end, function() return isFlingingSingle end, 10)
     else emergencyStop() end
 end)
 
-local allBtn = createButton("🌐 FLING ALL (ВЫКЛ)", Color3.fromRGB(150, 40, 200), function(btn)
+local allBtn = createButton("🌐 FLING ALL (ВЫКЛ)", Color3.fromRGB(110, 30, 150), function(btn)
     if isFlingingSingle then return end
     isFlingingAll = not isFlingingAll
     if isFlingingAll then
-        btn.BackgroundColor3 = Color3.fromRGB(40, 180, 40) btn.Text = "🌐 FLING ALL (ВКЛ) 🔥"
+        btn.BackgroundColor3 = Color3.fromRGB(30, 140, 40) btn.Text = "🌐 FLING ALL (ВКЛ) 🔥"
         local currentTargetPlayer = nil
         task.spawn(function()
             while isFlingingAll do
@@ -657,10 +716,10 @@ local allBtn = createButton("🌐 FLING ALL (ВЫКЛ)", Color3.fromRGB(150, 40,
     else emergencyStop() end
 end)
 
-createButton("🛑 ЭКСТРЕННЫЙ СТОП РВАНКИ", Color3.fromRGB(255, 120, 0), function()
+createButton("🛑 ЭКСТРЕННЫЙ СТОП РВАНКИ", Color3.fromRGB(200, 90, 0), function()
     emergencyStop()
-    rvBtn.Text = "💥 РВАНКА ЦЕЛИ (10 СЕК)" rvBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-    allBtn.Text = "🌐 FLING ALL (ВЫКЛ)" allBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 200)
+    rvBtn.Text = "💥 РВАНКА ЦЕЛИ (10 СЕК)" rvBtn.BackgroundColor3 = Color3.fromRGB(160, 35, 35)
+    allBtn.Text = "🌐 FLING ALL (ВЫКЛ)" allBtn.BackgroundColor3 = Color3.fromRGB(110, 30, 150)
 end)
 
-print("✅ MM2 V26.9.2 LOADED!")
+print("✅ MM2 V26.9.2 LOADED WITH REDESIGNED UI!")
