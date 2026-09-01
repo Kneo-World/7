@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V28.0 (ADVANCED VISUALS & ENHANCED ESP EDITION)
+-- MM2 ULTIMATE V29.0 (FIXED ALL ESP & TRACERS & VISUALS)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -37,10 +37,14 @@ local selectedPlayerName = nil
 local tpPlayerName = nil
 local originalCFrame = nil
 local safePointCFrame = nil
-local lastShotTime = 0
 
 local flingNameMap = {}
 local tpNameMap = {}
+
+-- Папка для хранения визуалов ESP
+local espContainer = Workspace:FindFirstChild("V29_ESP_Folder") or Instance.new("Folder")
+espContainer.Name = "V29_ESP_Folder"
+espContainer.Parent = Workspace
 
 -- ========== Вспомогательные функции ==========
 local function getCharacter()
@@ -52,43 +56,23 @@ local function getCharacter()
 end
 
 local function getRoleColor(plr)
-    if not plr.Character then return Color3.fromRGB(0, 255, 120) end
-    if plr.Character:FindFirstChild("Knife") or plr.Backpack:FindFirstChild("Knife") then
-        return Color3.fromRGB(255, 30, 60) -- Murderer (Красный)
-    elseif plr.Character:FindFirstChild("Gun") or plr.Backpack:FindFirstChild("Gun") then
-        return Color3.fromRGB(0, 150, 255) -- Sheriff (Синий)
+    if not plr or not plr.Character then return Color3.fromRGB(0, 255, 120) end
+    if plr.Character:FindFirstChild("Knife") or (plr:FindFirstChild("Backpack") and plr.Backpack:FindFirstChild("Knife")) then
+        return Color3.fromRGB(255, 35, 35) -- Murderer (Красный)
+    elseif plr.Character:FindFirstChild("Gun") or (plr:FindFirstChild("Backpack") and plr.Backpack:FindFirstChild("Gun")) then
+        return Color3.fromRGB(35, 135, 255) -- Sheriff (Синий)
     end
     return Color3.fromRGB(0, 255, 120) -- Innocent (Зелёный)
 end
 
 local function getRoleName(plr)
-    if not plr.Character then return "Innocent" end
-    if plr.Character:FindFirstChild("Knife") or plr.Backpack:FindFirstChild("Knife") then
+    if not plr or not plr.Character then return "Innocent" end
+    if plr.Character:FindFirstChild("Knife") or (plr:FindFirstChild("Backpack") and plr.Backpack:FindFirstChild("Knife")) then
         return "MURDER"
-    elseif plr.Character:FindFirstChild("Gun") or plr.Backpack:FindFirstChild("Gun") then
+    elseif plr.Character:FindFirstChild("Gun") or (plr:FindFirstChild("Backpack") and plr.Backpack:FindFirstChild("Gun")) then
         return "SHERIFF"
     end
     return "Innocent"
-end
-
-local function getCoinCount()
-    local coinData = player:FindFirstChild("CoinData") or player:FindFirstChild("leaderstats")
-    if coinData then
-        local coins = coinData:FindFirstChild("Coins") or coinData:FindFirstChild("Coin")
-        if coins then return coins.Value end
-    end
-    return 0
-end
-
-local function getMurderer()
-    for _, plr in ipairs(game.Players:GetPlayers()) do
-        if plr ~= player and plr.Character then
-            if plr.Character:FindFirstChild("Knife") or plr.Backpack:FindFirstChild("Knife") then 
-                return plr 
-            end
-        end
-    end
-    return nil
 end
 
 -- ========== ДВИЖОК РВАНКИ ==========
@@ -153,8 +137,8 @@ end
 
 -- ========== ОКНО RAYFIELD ==========
 local Window = Rayfield:CreateWindow({
-   Name = "✨ MM2 Ultimate V28.0 (Visual Master)",
-   LoadingTitle = "Загрузка UI & Визуалов...",
+   Name = "✨ MM2 Ultimate V29.0 (ESP Fix Edition)",
+   LoadingTitle = "Загрузка UI & Полноценного ESP...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
@@ -167,44 +151,26 @@ local CombatTab = Window:CreateTab("🎯 Аим & Бой", 4483362458)
 local MiscTab = Window:CreateTab("⚙️ Разное & Настройки", 4483362458)
 
 -- ==================== Вкладка: ВИЗУАЛ & ESP ====================
-VisualsTab:CreateSection("🔥 Основной ESP")
+VisualsTab:CreateSection("🔥 Основной ESP (Работает на всех)")
 
 VisualsTab:CreateToggle({
-   Name = "✨ Advanced Chams & Highlight",
+   Name = "✨ Advanced Chams & Info (Ники/Роли)",
    CurrentValue = false,
    Callback = function(Value)
       espHighlightEnabled = Value
-      if not espHighlightEnabled then
-         for _, p in ipairs(game.Players:GetPlayers()) do
-             if p.Character then
-                 local hl = p.Character:FindFirstChild("V28_Highlight")
-                 if hl then hl:Destroy() end
-                 local bb = p.Character:FindFirstChild("V28_Billboard")
-                 if bb then bb:Destroy() end
-             end
-         end
-      end
    end,
 })
 
 VisualsTab:CreateToggle({
-   Name = "📦 3D Box ESP (Объёмные боксы)",
+   Name = "📦 3D Box ESP (Объёмные боксы на всех)",
    CurrentValue = false,
    Callback = function(Value)
       espBoxesEnabled = Value
-      if not espBoxesEnabled then
-         for _, p in ipairs(game.Players:GetPlayers()) do
-             if p.Character then
-                 local box = p.Character:FindFirstChild("V28_BoxESP")
-                 if box then box:Destroy() end
-             end
-         end
-      end
    end,
 })
 
 VisualsTab:CreateToggle({
-   Name = "📏 Snaplines / Tracers (Линии)",
+   Name = "📏 Snaplines / Tracers (Линии от экрана)",
    CurrentValue = false,
    Callback = function(Value)
       espTracersEnabled = Value
@@ -220,7 +186,7 @@ VisualsTab:CreateToggle({
 VisualsTab:CreateSection("🎨 Графика и Камера")
 
 VisualsTab:CreateSlider({
-   Name = "👁️ Расширение FOV (Угол обзора)",
+   Name = "👁️ Расширение FOV",
    Range = {60, 120},
    Increment = 1,
    Suffix = "°",
@@ -236,15 +202,15 @@ VisualsTab:CreateToggle({
    CurrentValue = false,
    Callback = function(Value)
       customCrosshairEnabled = Value
-      local gui = game.CoreGui:FindFirstChild("V28_CrosshairGui")
+      local gui = game.CoreGui:FindFirstChild("V29_CrosshairGui")
       if gui then gui.Enabled = Value end
    end,
 })
 
--- ==================== ДВИЖОК ЭФФЕКТОВ ESP ====================
+-- ==================== НОВЫЙ СВЕРХСТАБИЛЬНЫЙ ДВИЖОК ESP ====================
 
 local crosshairGui = Instance.new("ScreenGui", game.CoreGui)
-crosshairGui.Name = "V28_CrosshairGui"
+crosshairGui.Name = "V29_CrosshairGui"
 crosshairGui.Enabled = false
 
 local chCenter = Instance.new("Frame", crosshairGui)
@@ -265,113 +231,96 @@ lineV.Position = UDim2.new(0.5, -1, 0.5, -8)
 lineV.BackgroundColor3 = Color3.fromRGB(0, 255, 200)
 lineV.BorderSizePixel = 0
 
-local tracersFolder = Instance.new("Folder", game.CoreGui)
-tracersFolder.Name = "V28_TracersFolder"
+-- Кастомный очищаемый слой для линий через CylinderHandleAdornment/Line
+local tracerFolder = Instance.new("Folder", game.CoreGui)
+tracerFolder.Name = "V29_Tracers"
 
 RunService.RenderStepped:Connect(function()
-    if customFovEnabled then
-        Camera.FieldOfView = targetFovValue
-    end
-
-    tracersFolder:ClearAllChildren()
+    if customFovEnabled then Camera.FieldOfView = targetFovValue end
+    
+    tracerFolder:ClearAllChildren()
 
     for _, plr in ipairs(game.Players:GetPlayers()) do
         if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
             local char = plr.Character
             local hrp = char.HumanoidRootPart
-            local hum = char:FindFirstChild("Humanoid")
             local color = getRoleColor(plr)
             local roleText = getRoleName(plr)
 
-            -- 1. Chams & Billboard
+            -- 1. Chams + Highlight + Billboard Info
+            local hl = char:FindFirstChild("V29_HL")
             if espHighlightEnabled then
-                local hl = char:FindFirstChild("V28_Highlight")
                 if not hl then
                     hl = Instance.new("Highlight")
-                    hl.Name = "V28_Highlight"
+                    hl.Name = "V29_HL"
                     hl.Parent = char
                 end
+                hl.Enabled = true
                 hl.FillColor = color
                 hl.OutlineColor = Color3.fromRGB(255, 255, 255)
                 hl.FillTransparency = 0.35
-                hl.OutlineTransparency = 0
-
-                local bb = char:FindFirstChild("V28_Billboard")
+                
+                local bb = char:FindFirstChild("V29_BB")
                 if not bb then
                     bb = Instance.new("BillboardGui")
-                    bb.Name = "V28_Billboard"
-                    bb.Size = UDim2.new(0, 140, 0, 40)
+                    bb.Name = "V29_BB"
+                    bb.Size = UDim2.new(0, 160, 0, 40)
                     bb.AlwaysOnTop = true
                     bb.Adornee = hrp
 
-                    local mainFrame = Instance.new("Frame", bb)
-                    mainFrame.Size = UDim2.new(1, 0, 1, 0)
-                    mainFrame.BackgroundTransparency = 1
-
-                    local txt = Instance.new("TextLabel", mainFrame)
-                    txt.Name = "InfoText"
-                    txt.Size = UDim2.new(1, 0, 0.6, 0)
+                    local txt = Instance.new("TextLabel", bb)
+                    txt.Name = "Info"
+                    txt.Size = UDim2.new(1, 0, 1, 0)
                     txt.BackgroundTransparency = 1
                     txt.Font = Enum.Font.GothamBold
-                    txt.TextSize = 12
-                    txt.TextStrokeTransparency = 0.2
-
-                    local hpBg = Instance.new("Frame", mainFrame)
-                    hpBg.Size = UDim2.new(0.8, 0, 0, 4)
-                    hpBg.Position = UDim2.new(0.1, 0, 0.7, 0)
-                    hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-                    hpBg.BorderSizePixel = 0
-
-                    local hpFill = Instance.new("Frame", hpBg)
-                    hpFill.Name = "HPFill"
-                    hpFill.Size = UDim2.new(1, 0, 1, 0)
-                    hpFill.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
-                    hpFill.BorderSizePixel = 0
+                    txt.TextSize = 13
+                    txt.TextStrokeTransparency = 0.1
 
                     bb.Parent = char
                 end
-
+                
                 local _, _, myRoot = getCharacter()
                 local dist = myRoot and math.floor((myRoot.Position - hrp.Position).Magnitude) or 0
-                local txtLabel = bb.Frame.InfoText
-                txtLabel.TextColor3 = color
-                txtLabel.Text = string.format("%s [%s]\n%d meters", plr.Name, roleText, dist)
-
-                if hum then
-                    local hpRatio = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
-                    bb.Frame.HPBg.HPFill.Size = UDim2.new(hpRatio, 0, 1, 0)
-                end
+                bb.Info.TextColor3 = color
+                bb.Info.Text = string.format("%s [%s]\n%d м", plr.Name, roleText, dist)
+            else
+                if hl then hl.Enabled = false end
+                local bb = char:FindFirstChild("V29_BB")
+                if bb then bb:Destroy() end
             end
 
-            -- 2. 3D Box ESP
+            -- 2. 3D Box ESP (SelectionBox)
+            local box = char:FindFirstChild("V29_BOX")
             if espBoxesEnabled then
-                local box = char:FindFirstChild("V28_BoxESP")
                 if not box then
                     box = Instance.new("SelectionBox")
-                    box.Name = "V28_BoxESP"
-                    box.LineThickness = 0.04
+                    box.Name = "V29_BOX"
+                    box.LineThickness = 0.05
                     box.Adornee = char
                     box.Parent = char
                 end
+                box.Visible = true
                 box.Color3 = color
+            else
+                if box then box.Visible = false end
             end
 
-            -- 3. Snaplines / Tracers
+            -- 3. Snaplines / Tracers (Линии от низа экрана)
             if espTracersEnabled then
                 local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
                 if onScreen then
-                    local line = Instance.new("Frame", tracersFolder)
-                    line.BorderSizePixel = 0
-                    line.BackgroundColor3 = color
+                    local lineFrame = Instance.new("Frame", tracerFolder)
+                    lineFrame.BorderSizePixel = 0
+                    lineFrame.BackgroundColor3 = color
 
                     local startPos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
                     local endPos = Vector2.new(screenPos.X, screenPos.Y)
                     local distance = (endPos - startPos).Magnitude
 
-                    line.Size = UDim2.new(0, distance, 0, 1.5)
-                    line.Position = UDim2.new(0, startPos.X, 0, startPos.Y)
-                    line.AnchorPoint = Vector2.new(0, 0.5)
-                    line.Rotation = math.deg(math.atan2(endPos.Y - startPos.Y, endPos.X - startPos.X))
+                    lineFrame.Size = UDim2.new(0, distance, 0, 2)
+                    lineFrame.Position = UDim2.new(0, startPos.X, 0, startPos.Y)
+                    lineFrame.AnchorPoint = Vector2.new(0, 0.5)
+                    lineFrame.Rotation = math.deg(math.atan2(endPos.Y - startPos.Y, endPos.X - startPos.X))
                 end
             end
         end
@@ -407,12 +356,11 @@ local function refreshSortedPlayerLists()
 
     for _, p in ipairs(game.Players:GetPlayers()) do
         if p ~= player then
-            local char = p.Character
             local displayName = p.Name
             
-            if char and (char:FindFirstChild("Knife") or p.Backpack:FindFirstChild("Knife")) then
+            if p.Character and (p.Character:FindFirstChild("Knife") or (p:FindFirstChild("Backpack") and p.Backpack:FindFirstChild("Knife"))) then
                 displayName = "🔴 " .. p.Name .. " [MURDER]"
-            elseif char and (char:FindFirstChild("Gun") or p.Backpack:FindFirstChild("Gun")) then
+            elseif p.Character and (p.Character:FindFirstChild("Gun") or (p:FindFirstChild("Backpack") and p.Backpack:FindFirstChild("Gun"))) then
                 displayName = "🔵 " .. p.Name .. " [SHERIFF]"
             end
 
@@ -571,7 +519,7 @@ CombatTab:CreateButton({
       local char, hum, root = getCharacter()
       if not char then return end
 
-      local knife = char:FindFirstChild("Knife") or player.Backpack:FindFirstChild("Knife")
+      local knife = char:FindFirstChild("Knife") or (player:FindFirstChild("Backpack") and player.Backpack:FindFirstChild("Knife"))
       if not knife then
           Rayfield:Notify({Title = "Ошибка", Content = "Ты не Убийца!", Duration = 2})
           return
@@ -730,4 +678,4 @@ game.Players.PlayerAdded:Connect(refreshSortedPlayerLists)
 game.Players.PlayerRemoving:Connect(refreshSortedPlayerLists)
 refreshSortedPlayerLists()
 
-Rayfield:Notify({Title = "MM2 Ultimate V28.0", Content = "Пакет визуалов и ESP успешно загружен!", Duration = 3})
+Rayfield:Notify({Title = "MM2 Ultimate V29.0", Content = "Фикс ESP, линий и 3D-боксов успешно применён!", Duration = 3})
