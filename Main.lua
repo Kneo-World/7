@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V27.6 (DROPDOWN & ROLES FIX)
+-- MM2 ULTIMATE V28.0 (ADVANCED VISUALS & ENHANCED ESP EDITION)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -9,13 +9,13 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Camera = Workspace.CurrentCamera
 
 -- ========== Переменные состояний ==========
 local isFlingingSingle = false
 local isFlingingAll = false
 local isSpinAuraEnabled = false
 local bunnyHopEnabled = false
-local espEnabled = false
 local autoFarmEnabled = false
 local autoPickGunEnabled = false
 local gunEspEnabled = false
@@ -25,13 +25,20 @@ local noclipEnabled = false
 local silentAimEnabled = false
 local maxAntiFlingEnabled = false
 
+-- Visuals Flags
+local espHighlightEnabled = false
+local espBoxesEnabled = false
+local espTracersEnabled = false
+local customCrosshairEnabled = false
+local customFovEnabled = false
+local targetFovValue = 70
+
 local selectedPlayerName = nil
 local tpPlayerName = nil
 local originalCFrame = nil
 local safePointCFrame = nil
 local lastShotTime = 0
 
--- Хранилище связок: "Отображаемый текст в меню" -> "Настоящий Plr.Name"
 local flingNameMap = {}
 local tpNameMap = {}
 
@@ -44,19 +51,31 @@ local function getCharacter()
     return nil, nil, nil
 end
 
+local function getRoleColor(plr)
+    if not plr.Character then return Color3.fromRGB(0, 255, 120) end
+    if plr.Character:FindFirstChild("Knife") or plr.Backpack:FindFirstChild("Knife") then
+        return Color3.fromRGB(255, 30, 60) -- Murderer (Красный)
+    elseif plr.Character:FindFirstChild("Gun") or plr.Backpack:FindFirstChild("Gun") then
+        return Color3.fromRGB(0, 150, 255) -- Sheriff (Синий)
+    end
+    return Color3.fromRGB(0, 255, 120) -- Innocent (Зелёный)
+end
+
+local function getRoleName(plr)
+    if not plr.Character then return "Innocent" end
+    if plr.Character:FindFirstChild("Knife") or plr.Backpack:FindFirstChild("Knife") then
+        return "MURDER"
+    elseif plr.Character:FindFirstChild("Gun") or plr.Backpack:FindFirstChild("Gun") then
+        return "SHERIFF"
+    end
+    return "Innocent"
+end
+
 local function getCoinCount()
     local coinData = player:FindFirstChild("CoinData") or player:FindFirstChild("leaderstats")
     if coinData then
         local coins = coinData:FindFirstChild("Coins") or coinData:FindFirstChild("Coin")
         if coins then return coins.Value end
-    end
-    local gui = player.PlayerGui:FindFirstChild("MainGUI", true)
-    if gui then
-        local coinLabel = gui:FindFirstChild("CoinLabel", true) or gui:FindFirstChild("Coins", true)
-        if coinLabel and coinLabel:IsA("TextLabel") then
-            local val = tonumber(coinLabel.Text:match("%d+"))
-            if val then return val end
-        end
     end
     return 0
 end
@@ -65,17 +84,6 @@ local function getMurderer()
     for _, plr in ipairs(game.Players:GetPlayers()) do
         if plr ~= player and plr.Character then
             if plr.Character:FindFirstChild("Knife") or plr.Backpack:FindFirstChild("Knife") then 
-                return plr 
-            end
-        end
-    end
-    return nil
-end
-
-local function getSheriff()
-    for _, plr in ipairs(game.Players:GetPlayers()) do
-        if plr ~= player and plr.Character then
-            if plr.Character:FindFirstChild("Gun") or plr.Backpack:FindFirstChild("Gun") then 
                 return plr 
             end
         end
@@ -145,20 +153,236 @@ end
 
 -- ========== ОКНО RAYFIELD ==========
 local Window = Rayfield:CreateWindow({
-   Name = "⚡ MM2 Ultimate V27.6",
-   LoadingTitle = "Загрузка скрипта...",
+   Name = "✨ MM2 Ultimate V28.0 (Visual Master)",
+   LoadingTitle = "Загрузка UI & Визуалов...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
 })
 
+local VisualsTab = Window:CreateTab("👁️ Визуал & ESP", 4483362458)
 local FlingTab = Window:CreateTab("💥 Рванка & Аура", 4483362458)
 local FarmingTab = Window:CreateTab("💰 Авто-Фарм", 4483362458)
 local CombatTab = Window:CreateTab("🎯 Аим & Бой", 4483362458)
-local VisualsTab = Window:CreateTab("👁️ Визуал & ESP", 4483362458)
-local MiscTab = Window:CreateTab("⚙️ Телепорт & Разное", 4483362458)
+local MiscTab = Window:CreateTab("⚙️ Разное & Настройки", 4483362458)
 
--- ==================== Вкладка: Рванка & Аура ====================
+-- ==================== Вкладка: ВИЗУАЛ & ESP ====================
+VisualsTab:CreateSection("🔥 Основной ESP")
+
+VisualsTab:CreateToggle({
+   Name = "✨ Advanced Chams & Highlight",
+   CurrentValue = false,
+   Callback = function(Value)
+      espHighlightEnabled = Value
+      if not espHighlightEnabled then
+         for _, p in ipairs(game.Players:GetPlayers()) do
+             if p.Character then
+                 local hl = p.Character:FindFirstChild("V28_Highlight")
+                 if hl then hl:Destroy() end
+                 local bb = p.Character:FindFirstChild("V28_Billboard")
+                 if bb then bb:Destroy() end
+             end
+         end
+      end
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "📦 3D Box ESP (Объёмные боксы)",
+   CurrentValue = false,
+   Callback = function(Value)
+      espBoxesEnabled = Value
+      if not espBoxesEnabled then
+         for _, p in ipairs(game.Players:GetPlayers()) do
+             if p.Character then
+                 local box = p.Character:FindFirstChild("V28_BoxESP")
+                 if box then box:Destroy() end
+             end
+         end
+      end
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "📏 Snaplines / Tracers (Линии)",
+   CurrentValue = false,
+   Callback = function(Value)
+      espTracersEnabled = Value
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "🔫 Drop Gun ESP & Marker",
+   CurrentValue = false,
+   Callback = function(Value) gunEspEnabled = Value end,
+})
+
+VisualsTab:CreateSection("🎨 Графика и Камера")
+
+VisualsTab:CreateSlider({
+   Name = "👁️ Расширение FOV (Угол обзора)",
+   Range = {60, 120},
+   Increment = 1,
+   Suffix = "°",
+   CurrentValue = 70,
+   Callback = function(Value)
+      targetFovValue = Value
+      customFovEnabled = true
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "🎯 Кастомный Крестик (Crosshair)",
+   CurrentValue = false,
+   Callback = function(Value)
+      customCrosshairEnabled = Value
+      local gui = game.CoreGui:FindFirstChild("V28_CrosshairGui")
+      if gui then gui.Enabled = Value end
+   end,
+})
+
+-- ==================== ДВИЖОК ЭФФЕКТОВ ESP ====================
+
+-- Создание крестика
+local crosshairGui = Instance.new("ScreenGui", game.CoreGui)
+crosshairGui.Name = "V28_CrosshairGui"
+crosshairGui.Enabled = false
+
+local chCenter = Instance.new("Frame", crosshairGui)
+chCenter.Size = UDim2.new(0, 4, 0, 4)
+chCenter.Position = UDim2.new(0.5, -2, 0.5, -2)
+chCenter.BackgroundColor3 = Color3.fromRGB(0, 255, 200)
+chCenter.BorderSizePixel = 0
+
+local lineH = Instance.new("Frame", crosshairGui)
+lineH.Size = UDim2.new(0, 16, 0, 2)
+lineH.Position = UDim2.new(0.5, -8, 0.5, -1)
+lineH.BackgroundColor3 = Color3.fromRGB(0, 255, 200)
+lineH.BorderSizePixel = 0
+
+local lineV = Instance.new("Frame", crosshairGui)
+lineV.Size = UDim2.new(0, 2, 0, 16)
+lineV.Position = UDim2.new(0.5, -1, 0.5, -8)
+lineV.BackgroundColor3 = Color3.fromRGB(0, 255, 200)
+lineV.BorderSizePixel = 0
+
+-- Папка для Tracers
+local tracersFolder = Instance.new("Folder", game.CoreGui)
+tracersFolder.Name = "V28_TracersFolder"
+
+RunService.RenderStepped:Connect(function()
+    -- Кастомный FOV
+    if customFovEnabled then
+        Camera.FieldOfView = targetFovValue
+    end
+
+    -- Очистка Tracers
+    tracersFolder:ClearAllChildren()
+
+    for _, plr in ipairs(game.Players:GetPlayers()) do
+        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local char = plr.Character
+            local hrp = char.HumanoidRootPart
+            local hum = char:FindFirstChild("Humanoid")
+            local color = getRoleColor(plr)
+            local roleText = getRoleName(plr)
+
+            -- 1. Chams & Billboard
+            if espHighlightEnabled then
+                local hl = char:FindFirstChild("V28_Highlight")
+                if not hl then
+                    hl = Instance.new("Highlight")
+                    hl.Name = "V28_Highlight"
+                    hl.Parent = char
+                end
+                hl.FillColor = color
+                hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                hl.FillTransparency = 0.35
+                hl.OutlineTransparency = 0
+
+                local bb = char:FindFirstChild("V28_Billboard")
+                if not bb then
+                    bb = Instance.new("BillboardGui")
+                    bb.Name = "V28_Billboard"
+                    bb.Size = UDim2.new(0, 140, 0, 40)
+                    bb.AlwaysOnTop = true
+                    bb.Adornee = hrp
+
+                    local mainFrame = Instance.new("Frame", bb)
+                    mainFrame.Size = UDim2.new(1, 0, 1, 0)
+                    mainFrame.BackgroundTransparency = 1
+
+                    local txt = Instance.new("TextLabel", mainFrame)
+                    txt.Name = "InfoText"
+                    txt.Size = UDim2.new(1, 0, 0.6, 0)
+                    txt.BackgroundTransparency = 1
+                    txt.Font = Enum.Font.GothamBold
+                    txt.TextSize = 12
+                    txt.TextStrokeTransparency = 0.2
+
+                    local hpBg = Instance.new("Frame", mainFrame)
+                    hpBg.Size = UDim2.new(0.8, 0, 0, 4)
+                    hpBg.Position = UDim2.new(0.1, 0, 0.7, 0)
+                    hpBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                    hpBg.BorderSizePixel = 0
+
+                    local hpFill = Instance.new("Frame", hpBg)
+                    hpFill.Name = "HPFill"
+                    hpFill.Size = UDim2.new(1, 0, 1, 0)
+                    hpFill.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+                    hpFill.BorderSizePixel = 0
+
+                    bb.Parent = char
+                end
+
+                local _, _, myRoot = getCharacter()
+                local dist = myRoot and math.floor((myRoot.Position - hrp.Position).Magnitude) or 0
+                local txtLabel = bb.Frame.InfoText
+                txtLabel.TextColor3 = color
+                txtLabel.Text = string.format("%s [%s]\n%d meters", plr.Name, roleText, dist)
+
+                if hum then
+                    local hpRatio = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+                    bb.Frame.HPBg.HPFill.Size = UDim2.new(hpRatio, 0, 1, 0)
+                end
+            end
+
+            -- 2. 3D Box ESP
+            if espBoxesEnabled then
+                local box = char:FindFirstChild("V28_BoxESP")
+                if not box then
+                    box = Instance.new("SelectionBox")
+                    box.Name = "V28_BoxESP"
+                    box.LineThickness = 0.04
+                    box.Adornee = char
+                    box.Parent = char
+                end
+                box.Color3 = color
+            end
+
+            -- 3. Snaplines / Tracers
+            if espTracersEnabled then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+                if onScreen then
+                    local line = Instance.new("Frame", tracersFolder)
+                    line.BorderSizePixel = 0
+                    line.BackgroundColor3 = color
+
+                    local startPos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                    local endPos = Vector2.new(screenPos.X, screenPos.Y)
+                    local distance = (endPos - startPos).Magnitude
+
+                    line.Size = UDim2.new(0, distance, 0, 1.5)
+                    line.Position = UDim2.new(0, startPos.X, 0, startPos.Y)
+                    line.AnchorPoint = Vector2.new(0, 0.5)
+                    line.Rotation = math.deg(math.atan2(endPos.Y - startPos.Y, endPos.X - startPos.X))
+                end
+            end
+        end
+    end
+end)
+
+-- ==================== Вкладка: РВАНКА & АУРА ====================
 FlingTab:CreateSection("Управление Рванкой")
 
 local playerDropdown = FlingTab:CreateDropdown({
@@ -167,8 +391,7 @@ local playerDropdown = FlingTab:CreateDropdown({
    CurrentOption = {"Загрузка..."},
    MultipleOptions = false,
    Callback = function(Option) 
-      local selectedText = Option[1]
-      selectedPlayerName = flingNameMap[selectedText]
+      selectedPlayerName = flingNameMap[Option[1]]
    end,
 })
 
@@ -178,19 +401,13 @@ local tpDropdown = MiscTab:CreateDropdown({
    CurrentOption = {"Загрузка..."},
    MultipleOptions = false,
    Callback = function(Option) 
-      local selectedText = Option[1]
-      tpPlayerName = tpNameMap[selectedText]
+      tpPlayerName = tpNameMap[Option[1]]
    end,
 })
 
--- Исправленное авто-обновление списков без ошибок парсинга
 local function refreshSortedPlayerLists()
-    local murderers = {}
-    local sheriffs = {}
-    local innocents = {}
-
-    flingNameMap = {}
-    tpNameMap = {}
+    local murderers, sheriffs, innocents = {}, {}, {}
+    flingNameMap, tpNameMap = {}, {}
 
     for _, p in ipairs(game.Players:GetPlayers()) do
         if p ~= player then
@@ -206,13 +423,9 @@ local function refreshSortedPlayerLists()
             flingNameMap[displayName] = p.Name
             tpNameMap[displayName] = p.Name
 
-            if displayName:find("%[MURDER%]") then
-                table.insert(murderers, displayName)
-            elseif displayName:find("%[SHERIFF%]") then
-                table.insert(sheriffs, displayName)
-            else
-                table.insert(innocents, displayName)
-            end
+            if displayName:find("%[MURDER%]") then table.insert(murderers, displayName)
+            elseif displayName:find("%[SHERIFF%]") then table.insert(sheriffs, displayName)
+            else table.insert(innocents, displayName) end
         end
     end
 
@@ -222,12 +435,10 @@ local function refreshSortedPlayerLists()
     for _, i in ipairs(innocents) do table.insert(sortedList, i) end
 
     if #sortedList == 0 then sortedList = {"Никого нет"} end
-
     playerDropdown:Refresh(sortedList)
     tpDropdown:Refresh(sortedList)
 end
 
--- Автоматический цикл обновления каждые 2 секунды
 task.spawn(function()
     while true do
         refreshSortedPlayerLists()
@@ -302,13 +513,11 @@ RunService.Heartbeat:Connect(function()
     if not root or not hum then return end
 
     root.AssemblyAngularVelocity = Vector3.new(0, 95000, 0)
-    
     for _, otherPlayer in ipairs(game.Players:GetPlayers()) do
         if otherPlayer ~= player and otherPlayer.Character then
             local otherRoot = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
             if otherRoot then
-                local dist = (root.Position - otherRoot.Position).Magnitude
-                if dist < 4.5 then
+                if (root.Position - otherRoot.Position).Magnitude < 4.5 then
                     otherRoot.AssemblyLinearVelocity = Vector3.new(999999, 999999, 999999)
                 end
             end
@@ -328,13 +537,10 @@ FlingTab:CreateToggle({
           hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
           hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
       end
-      if not maxAntiFlingEnabled then
-          Rayfield:Notify({Title = "Anti-Fling", Content = "Защита выключена. Физика прыжков восстановлена!", Duration = 2})
-      end
    end,
 })
 
--- ==================== Вкладка: Авто-Фарм ====================
+-- ==================== Вкладка: АВТО-ФАРМ ====================
 FarmingTab:CreateSection("Настройки Фарма")
 
 FarmingTab:CreateButton({
@@ -354,7 +560,7 @@ FarmingTab:CreateToggle({
    Callback = function(Value) autoFarmEnabled = Value end,
 })
 
--- ==================== Вкладка: Аим & Бой ====================
+-- ==================== Вкладка: АИМ & БОЙ ====================
 CombatTab:CreateSection("Боевые Функции")
 
 CombatTab:CreateToggle({
@@ -397,88 +603,7 @@ CombatTab:CreateButton({
    end,
 })
 
--- ==================== Вкладка: Визуал & ESP ====================
-VisualsTab:CreateSection("Подсветка Игроков")
-
-VisualsTab:CreateToggle({
-   Name = "👁️ Real Highlight ESP",
-   CurrentValue = false,
-   Callback = function(Value)
-      espEnabled = Value
-      if not espEnabled then
-         for _, p in ipairs(game.Players:GetPlayers()) do
-             if p.Character then
-                 local hl = p.Character:FindFirstChild("MM2_Highlight")
-                 if hl then hl:Destroy() end
-                 local bb = p.Character:FindFirstChild("MM2_NameESP")
-                 if bb then bb:Destroy() end
-             end
-         end
-      end
-   end,
-})
-
-VisualsTab:CreateToggle({
-   Name = "🔫 Drop Gun ESP",
-   CurrentValue = false,
-   Callback = function(Value) gunEspEnabled = Value end,
-})
-
-RunService.RenderStepped:Connect(function()
-    if not espEnabled then return end
-    
-    for _, plr in ipairs(game.Players:GetPlayers()) do
-        if plr ~= player and plr.Character then
-            local char = plr.Character
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            
-            if hrp then
-                local color = Color3.fromRGB(0, 255, 100)
-                if char:FindFirstChild("Knife") or plr.Backpack:FindFirstChild("Knife") then
-                    color = Color3.fromRGB(255, 0, 0)
-                elseif char:FindFirstChild("Gun") or plr.Backpack:FindFirstChild("Gun") then
-                    color = Color3.fromRGB(0, 150, 255)
-                end
-
-                local hl = char:FindFirstChild("MM2_Highlight")
-                if not hl then
-                    hl = Instance.new("Highlight")
-                    hl.Name = "MM2_Highlight"
-                    hl.Parent = char
-                end
-                hl.FillColor = color
-                hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-                hl.FillTransparency = 0.4
-                hl.OutlineTransparency = 0
-
-                local bb = char:FindFirstChild("MM2_NameESP")
-                if not bb then
-                    bb = Instance.new("BillboardGui")
-                    bb.Name = "MM2_NameESP"
-                    bb.Size = UDim2.new(0, 100, 0, 30)
-                    bb.AlwaysOnTop = true
-                    bb.Adornee = hrp
-                    
-                    local txt = Instance.new("TextLabel", bb)
-                    txt.Name = "Text"
-                    txt.Size = UDim2.new(1, 0, 1, 0)
-                    txt.BackgroundTransparency = 1
-                    txt.Font = Enum.Font.GothamBold
-                    txt.TextSize = 11
-                    txt.Parent = bb
-                    bb.Parent = char
-                end
-                
-                local _, _, myRoot = getCharacter()
-                local dist = myRoot and math.floor((myRoot.Position - hrp.Position).Magnitude) or 0
-                bb.Text.TextColor3 = color
-                bb.Text.Text = plr.Name .. "\n[" .. dist .. "m]"
-            end
-        end
-    end
-end)
-
--- ==================== Вкладка: Телепорт & Разное ====================
+-- ==================== Вкладка: РАЗНОЕ ====================
 MiscTab:CreateSection("Телепортация")
 
 MiscTab:CreateButton({
@@ -502,17 +627,6 @@ MiscTab:CreateToggle({
    CurrentValue = false,
    Callback = function(Value) bunnyHopEnabled = Value end,
 })
-
-RunService.Stepped:Connect(function()
-    if bunnyHopEnabled then
-        local _, hum, _ = getCharacter()
-        if hum and (UserInputService:IsKeyDown(Enum.KeyCode.Space) or hum.FloorMaterial ~= Enum.Material.Air) then
-            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                hum.Jump = true
-            end
-        end
-    end
-end)
 
 MiscTab:CreateToggle({
    Name = "🧲 Auto Pick Gun",
@@ -548,7 +662,7 @@ MiscTab:CreateToggle({
    Callback = function(Value) noclipEnabled = Value end,
 })
 
--- ==================== ОБРАБОТЧИКИ СОБЫТИЙ ====================
+-- ==================== СЕРВИСНЫЕ ЦИКЛЫ ====================
 RunService.Stepped:Connect(function()
     if autoFarmEnabled or noclipEnabled then
         local char = getCharacter()
@@ -558,114 +672,15 @@ RunService.Stepped:Connect(function()
             end
         end
     end
-end)
-
--- Авто-фарм
-task.spawn(function()
-    while true do
-        task.wait(0.05)
-        if autoFarmEnabled then
-            local char, hum, root = getCharacter()
-            if root and hum and hum.Health > 0 then
-                if getCoinCount() >= 40 then
-                    local murderer = getMurderer()
-                    if murderer and murderer.Character and murderer.Character:FindFirstChild("HumanoidRootPart") then
-                        isFlingingSingle = true
-                        startFlingLoop(
-                            function() return murderer end, 
-                            function() 
-                                local mChar = murderer.Character
-                                local mRoot = mChar and mChar:FindFirstChild("HumanoidRootPart")
-                                local mHum = mChar and mChar:FindFirstChild("Humanoid")
-                                if not autoFarmEnabled or not mRoot or (mHum and mHum.Health <= 0) or mRoot.Position.Y > 200 then
-                                    isFlingingSingle = false
-                                end
-                                return isFlingingSingle 
-                            end, nil
-                        )
-                        while isFlingingSingle and autoFarmEnabled do task.wait(0.2) end
-                        emergencyStop()
-                    end
-
-                    if safePointCFrame then
-                        local _, _, currentRoot = getCharacter()
-                        if currentRoot then
-                            currentRoot.CFrame = safePointCFrame
-                            currentRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                        end
-                    end
-                    task.wait(1)
-                else
-                    local coins = {}
-                    for _, obj in ipairs(workspace:GetDescendants()) do
-                        if obj:IsA("BasePart") and (obj.Name == "Coin_Server" or obj.Name:find("Coin")) then
-                            if obj.Transparency < 0.9 and obj.Parent then
-                                table.insert(coins, {part = obj, distance = (root.Position - obj.Position).Magnitude})
-                            end
-                        end
-                    end
-                    table.sort(coins, function(a, b) return a.distance < b.distance end)
-
-                    if #coins > 0 and autoFarmEnabled then
-                        local targetObj = coins[1].part
-                        local targetPos = targetObj.Position - Vector3.new(0, 2.8, 0)
-                        local flySpeed = 55
-
-                        while autoFarmEnabled and targetObj.Parent and (root.Position - targetPos).Magnitude > 1.5 do
-                            local _, currentHum, currentRoot = getCharacter()
-                            if not currentRoot or currentHum.Health <= 0 or getCoinCount() >= 40 then break end
-
-                            currentRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                            local direction = (targetPos - currentRoot.Position).Unit
-                            local stepDistance = math.min((targetPos - currentRoot.Position).Magnitude, flySpeed * 0.03)
-                            currentRoot.CFrame = CFrame.new(currentRoot.Position + direction * stepDistance)
-                            task.wait(0.03)
-                        end
-
-                        if autoFarmEnabled and targetObj.Parent and firetouchinterest then
-                            firetouchinterest(root, targetObj, 0)
-                            task.wait(0.03)
-                            firetouchinterest(root, targetObj, 1)
-                            task.wait(0.1)
-                        end
-                    end
-                end
-            end
+    if bunnyHopEnabled then
+        local _, hum, _ = getCharacter()
+        if hum and UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            hum.Jump = true
         end
     end
 end)
 
--- Aimbot
-RunService.RenderStepped:Connect(function()
-    if silentAimEnabled then
-        local char, hum, root = getCharacter()
-        if char and root then
-            local murderer = getMurderer()
-            if murderer and murderer.Character then
-                local murdHead = murderer.Character:FindFirstChild("Head") or murderer.Character:FindFirstChild("HumanoidRootPart")
-                if murdHead then
-                    Workspace.CurrentCamera.CFrame = CFrame.new(Workspace.CurrentCamera.CFrame.Position, murdHead.Position)
-                    root.CFrame = CFrame.new(root.Position, Vector3.new(murdHead.Position.X, root.Position.Y, murdHead.Position.Z))
-
-                    local gun = char:FindFirstChild("Gun") or player.Backpack:FindFirstChild("Gun")
-                    if gun then
-                        if gun.Parent ~= char then hum:EquipTool(gun) end
-                        if tick() - lastShotTime > 0.3 then
-                            lastShotTime = tick()
-                            gun:Activate()
-                            local shootRemote = gun:FindFirstChild("Shoot") or gun:FindFirstChildWhichIsA("RemoteEvent", true) or ReplicatedStorage:FindFirstChild("Shoot", true)
-                            if shootRemote and shootRemote:IsA("RemoteEvent") then
-                                shootRemote:FireServer(murdHead.Position, murdHead.CFrame)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
-
--- Gun Drop & Auto Pick
+-- Drop Gun ESP Marker
 local gunEspFolder = Instance.new("Folder", game.CoreGui)
 RunService.RenderStepped:Connect(function()
     gunEspFolder:ClearAllChildren()
@@ -676,15 +691,15 @@ RunService.RenderStepped:Connect(function()
         if gunEspEnabled then
             local bb = Instance.new("BillboardGui", gunEspFolder)
             bb.Adornee = gunDrop
-            bb.Size = UDim2.new(0, 120, 0, 30)
+            bb.Size = UDim2.new(0, 140, 0, 30)
             bb.AlwaysOnTop = true
             local txt = Instance.new("TextLabel", bb)
             txt.Size = UDim2.new(1, 0, 1, 0)
             txt.BackgroundTransparency = 1
-            txt.TextColor3 = Color3.fromRGB(255, 255, 0)
+            txt.TextColor3 = Color3.fromRGB(255, 230, 0)
             txt.Font = Enum.Font.GothamBold
-            txt.TextSize = 12
-            txt.Text = "🔫 ПИСТОЛЕТ ЗДЕСЬ!"
+            txt.TextSize = 13
+            txt.Text = "🔫 ПИСТОЛЕТ ЛЕЖИТ!"
         end
 
         if autoPickGunEnabled and root then
@@ -697,28 +712,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Anti-Kill Safety
-RunService.Heartbeat:Connect(function()
-    if not antiKillEnabled then return end
-    local _, _, root = getCharacter()
-    if not root then return end
-
-    for _, plr in ipairs(game.Players:GetPlayers()) do
-        if plr ~= player and plr.Character then
-            local char = plr.Character
-            if char:FindFirstChild("Knife") then
-                local murdHrp = char:FindFirstChild("HumanoidRootPart")
-                if murdHrp then
-                    if (root.Position - murdHrp.Position).Magnitude < 12 then
-                        root.CFrame = root.CFrame + Vector3.new(0, 15, 0)
-                    end
-                end
-            end
-        end
-    end
-end)
-
--- Anti-Fling Protect
+-- Anti-Fling Protect Loop
 RunService.Heartbeat:Connect(function()
     if not maxAntiFlingEnabled or isFlingingSingle or isFlingingAll or autoFarmEnabled or isSpinAuraEnabled then return end
     local char, hum, root = getCharacter()
@@ -734,24 +728,10 @@ RunService.Heartbeat:Connect(function()
 
     hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
-
-    for _, otherPlayer in ipairs(game.Players:GetPlayers()) do
-        if otherPlayer ~= player and otherPlayer.Character then
-            local otherRoot = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if otherRoot then
-                for _, part in ipairs(otherPlayer.Character:GetDescendants()) do
-                    if part:IsA("BasePart") then part.CanCollide = false end
-                end
-                if (root.Position - otherRoot.Position).Magnitude < 8 and (otherRoot.AssemblyLinearVelocity.Magnitude + otherRoot.AssemblyAngularVelocity.Magnitude) > 100 then
-                    otherRoot.AssemblyLinearVelocity = Vector3.new(99999999, 99999999, 99999999)
-                end
-            end
-        end
-    end
 end)
 
 game.Players.PlayerAdded:Connect(refreshSortedPlayerLists)
 game.Players.PlayerRemoving:Connect(refreshSortedPlayerLists)
 refreshSortedPlayerLists()
 
-Rayfield:Notify({Title = "MM2 Ultimate V27.6", Content = "Списки и выбор ролей полностью исправлены!", Duration = 3})
+Rayfield:Notify({Title = "MM2 Ultimate V28.0", Content = "Пакет визуалов и ESP успешно загружен!", Duration = 3})
