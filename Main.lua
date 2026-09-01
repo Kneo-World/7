@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V27.4 (AUTO-REFRESH & SELECTION FIX)
+-- MM2 ULTIMATE V27.5 (ANTI-FLING & JUMP FIX)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -23,7 +23,7 @@ local ghostModeEnabled = false
 local antiKillEnabled = false
 local noclipEnabled = false
 local silentAimEnabled = false
-local maxAntiFlingEnabled = true
+local maxAntiFlingEnabled = false -- По умолчанию выключено для проверки
 
 local selectedPlayerName = nil
 local tpPlayerName = nil
@@ -42,7 +42,6 @@ end
 
 local function cleanPlayerName(rawText)
     if not rawText then return nil end
-    -- Удаление тегов ролей и всех неалфавитно-цифровых символов с начала строки
     local cleaned = rawText:gsub("%s*%[%U+%]%s*", "")
     cleaned = cleaned:gsub("^[^%w_]+", "")
     cleaned = cleaned:match("^%s*(.-)%s*$")
@@ -150,7 +149,7 @@ end
 
 -- ========== ОКНО RAYFIELD ==========
 local Window = Rayfield:CreateWindow({
-   Name = "⚡ MM2 Ultimate V27.4",
+   Name = "⚡ MM2 Ultimate V27.5",
    LoadingTitle = "Загрузка скрипта...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
@@ -163,7 +162,7 @@ local CombatTab = Window:CreateTab("🎯 Аим & Бой", 4483362458)
 local VisualsTab = Window:CreateTab("👁️ Визуал & ESP", 4483362458)
 local MiscTab = Window:CreateTab("⚙️ Телепорт & Разное", 4483362458)
 
--- ==================== Выпадающие списки ====================
+-- ==================== Вкладка: Рванка & Аура ====================
 FlingTab:CreateSection("Управление Рванкой")
 
 local playerDropdown = FlingTab:CreateDropdown({
@@ -215,7 +214,6 @@ local function refreshSortedPlayerLists()
     tpDropdown:Refresh(sortedList)
 end
 
--- Автоматический цикл обновления списков
 task.spawn(function()
     while true do
         refreshSortedPlayerLists()
@@ -306,10 +304,22 @@ end)
 
 FlingTab:CreateButton({ Name = "🛑 ЭКСТРЕННЫЙ СТОП РВАНКИ", Callback = function() emergencyStop() end })
 
+-- Исправленный Toggle для Anti-Fling
 FlingTab:CreateToggle({
    Name = "🛡️ Max Anti-Fling",
-   CurrentValue = true,
-   Callback = function(Value) maxAntiFlingEnabled = Value end,
+   CurrentValue = false,
+   Callback = function(Value) 
+      maxAntiFlingEnabled = Value
+      local _, hum, _ = getCharacter()
+      if hum then
+          -- Возвращаем нормальные состояния физики персонажа при выключении
+          hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
+          hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+      end
+      if not maxAntiFlingEnabled then
+          Rayfield:Notify({Title = "Anti-Fling", Content = "Защита выключена. Физика прыжков восстановлена!", Duration = 2})
+      end
+   end,
 })
 
 -- ==================== Вкладка: Авто-Фарм ====================
@@ -696,14 +706,20 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- Anti-Fling Protect
+-- Полностью исправленная функция Anti-Fling Protect
 RunService.Heartbeat:Connect(function()
     if not maxAntiFlingEnabled or isFlingingSingle or isFlingingAll or autoFarmEnabled or isSpinAuraEnabled then return end
     local char, hum, root = getCharacter()
     if not char or not root or not hum then return end
 
-    if root.AssemblyLinearVelocity.Magnitude > 30 then root.AssemblyLinearVelocity = Vector3.new(0,0,0) end
-    if root.AssemblyAngularVelocity.Magnitude > 30 then root.AssemblyAngularVelocity = Vector3.new(0,0,0) end
+    -- Проверяем только аномально высокую горизонтальную скорость (X/Z), сохраняя Y (прыжки)
+    local horizVel = Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z)
+    if horizVel.Magnitude > 120 then 
+        root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0) 
+    end
+    if root.AssemblyAngularVelocity.Magnitude > 120 then 
+        root.AssemblyAngularVelocity = Vector3.new(0, 0, 0) 
+    end
 
     hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
@@ -715,7 +731,7 @@ RunService.Heartbeat:Connect(function()
                 for _, part in ipairs(otherPlayer.Character:GetDescendants()) do
                     if part:IsA("BasePart") then part.CanCollide = false end
                 end
-                if (root.Position - otherRoot.Position).Magnitude < 10 and (otherRoot.AssemblyLinearVelocity.Magnitude + otherRoot.AssemblyAngularVelocity.Magnitude) > 80 then
+                if (root.Position - otherRoot.Position).Magnitude < 8 and (otherRoot.AssemblyLinearVelocity.Magnitude + otherRoot.AssemblyAngularVelocity.Magnitude) > 100 then
                     otherRoot.AssemblyLinearVelocity = Vector3.new(99999999, 99999999, 99999999)
                 end
             end
@@ -723,9 +739,8 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- События для моментального авто-обновления
 game.Players.PlayerAdded:Connect(refreshSortedPlayerLists)
 game.Players.PlayerRemoving:Connect(refreshSortedPlayerLists)
 refreshSortedPlayerLists()
 
-Rayfield:Notify({Title = "MM2 Ultimate V27.4", Content = "Исправлен выбор Мардера/Шерифа и включено авто-обновление!", Duration = 3})
+Rayfield:Notify({Title = "MM2 Ultimate V27.5", Content = "Фикс Anti-Fling и прыжков применён!", Duration = 3})
