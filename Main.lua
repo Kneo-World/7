@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V27.3 (RAYFIELD FIXED EDITION)
+-- MM2 ULTIMATE V27.4 (AUTO-REFRESH & SELECTION FIX)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -38,6 +38,15 @@ local function getCharacter()
         return char, char.Humanoid, char.HumanoidRootPart
     end
     return nil, nil, nil
+end
+
+local function cleanPlayerName(rawText)
+    if not rawText then return nil end
+    -- Удаление тегов ролей и всех неалфавитно-цифровых символов с начала строки
+    local cleaned = rawText:gsub("%s*%[%U+%]%s*", "")
+    cleaned = cleaned:gsub("^[^%w_]+", "")
+    cleaned = cleaned:match("^%s*(.-)%s*$")
+    return cleaned
 end
 
 local function getCoinCount()
@@ -79,7 +88,7 @@ local function getSheriff()
     return nil
 end
 
--- ========== ДВИЖОК РВАНКИ V27 ==========
+-- ========== ДВИЖОК РВАНКИ ==========
 local function emergencyStop()
     isFlingingSingle = false 
     isFlingingAll = false
@@ -139,9 +148,9 @@ local function startFlingLoop(getTargetFunc, isRunningCheck, durationLimit)
     end)
 end
 
--- ========== ОКНО И ВКЛАДКИ RAYFIELD ==========
+-- ========== ОКНО RAYFIELD ==========
 local Window = Rayfield:CreateWindow({
-   Name = "⚡ MM2 Ultimate V27.3",
+   Name = "⚡ MM2 Ultimate V27.4",
    LoadingTitle = "Загрузка скрипта...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
@@ -154,28 +163,26 @@ local CombatTab = Window:CreateTab("🎯 Аим & Бой", 4483362458)
 local VisualsTab = Window:CreateTab("👁️ Визуал & ESP", 4483362458)
 local MiscTab = Window:CreateTab("⚙️ Телепорт & Разное", 4483362458)
 
--- ==================== Вкладка: Рванка & Аура ====================
+-- ==================== Выпадающие списки ====================
 FlingTab:CreateSection("Управление Рванкой")
 
 local playerDropdown = FlingTab:CreateDropdown({
    Name = "Выбрать игрока для рванки",
-   Options = {"[Обновите список]"},
-   CurrentOption = {"[Обновите список]"},
+   Options = {"Загрузка..."},
+   CurrentOption = {"Загрузка..."},
    MultipleOptions = false,
    Callback = function(Option) 
-      local name = Option[1]
-      selectedPlayerName = name:gsub(" %[%U+%]", ""):gsub("🔴 ", ""):gsub("🔵 ", "")
+      selectedPlayerName = cleanPlayerName(Option[1])
    end,
 })
 
 local tpDropdown = MiscTab:CreateDropdown({
    Name = "Выбрать игрока для Телепорта",
-   Options = {"[Обновите список]"},
-   CurrentOption = {"[Обновите список]"},
+   Options = {"Загрузка..."},
+   CurrentOption = {"Загрузка..."},
    MultipleOptions = false,
    Callback = function(Option) 
-      local name = Option[1]
-      tpPlayerName = name:gsub(" %[%U+%]", ""):gsub("🔴 ", ""):gsub("🔵 ", "")
+      tpPlayerName = cleanPlayerName(Option[1])
    end,
 })
 
@@ -208,13 +215,13 @@ local function refreshSortedPlayerLists()
     tpDropdown:Refresh(sortedList)
 end
 
-FlingTab:CreateButton({
-   Name = "🔄 Обновить списки игроков (Сортировка ролей)",
-   Callback = function() 
-      refreshSortedPlayerLists()
-      Rayfield:Notify({Title = "Списки обновлены", Content = "Убийца свершу (Красный), Шериф второй (Синий)", Duration = 2})
-   end,
-})
+-- Автоматический цикл обновления списков
+task.spawn(function()
+    while true do
+        refreshSortedPlayerLists()
+        task.wait(3)
+    end
+end)
 
 FlingTab:CreateToggle({
    Name = "💥 Рванка выбранного игрока (10 сек)",
@@ -227,6 +234,7 @@ FlingTab:CreateToggle({
             startFlingLoop(function() return targetPlr end, function() return isFlingingSingle end, 10)
          else
             Rayfield:Notify({Title = "Ошибка", Content = "Сначала выберите игрока из списка!", Duration = 2})
+            isFlingingSingle = false
          end
       else emergencyStop() end
    end,
@@ -265,7 +273,7 @@ FlingTab:CreateToggle({
 FlingTab:CreateSection("Пассивная Защита & Крутилка")
 
 FlingTab:CreateToggle({
-   Name = "🌪️ Крутилка-Аура (Безопасная для себя)",
+   Name = "🌪️ Крутилка-Аура (Безопасная)",
    CurrentValue = false,
    Callback = function(Value)
       isSpinAuraEnabled = Value
@@ -276,16 +284,13 @@ FlingTab:CreateToggle({
    end,
 })
 
--- Фиксированная Безопасная Крутилка
 RunService.Heartbeat:Connect(function()
     if not isSpinAuraEnabled or isFlingingSingle or isFlingingAll then return end
     local char, hum, root = getCharacter()
     if not root or not hum then return end
 
-    -- Принудительное вращение ТОЛЬКО угловой физики
     root.AssemblyAngularVelocity = Vector3.new(0, 95000, 0)
     
-    -- Кастомная передача импульса чужим телам без вылета самого себя
     for _, otherPlayer in ipairs(game.Players:GetPlayers()) do
         if otherPlayer ~= player and otherPlayer.Character then
             local otherRoot = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -302,7 +307,7 @@ end)
 FlingTab:CreateButton({ Name = "🛑 ЭКСТРЕННЫЙ СТОП РВАНКИ", Callback = function() emergencyStop() end })
 
 FlingTab:CreateToggle({
-   Name = "🛡️ Max Anti-Fling (Защита от чужой рванки)",
+   Name = "🛡️ Max Anti-Fling",
    CurrentValue = true,
    Callback = function(Value) maxAntiFlingEnabled = Value end,
 })
@@ -322,7 +327,7 @@ FarmingTab:CreateButton({
 })
 
 FarmingTab:CreateToggle({
-   Name = "💰 Auto Farm Coins (с авто-рванкой Убийцы при 40 монетах)",
+   Name = "💰 Auto Farm Coins",
    CurrentValue = false,
    Callback = function(Value) autoFarmEnabled = Value end,
 })
@@ -371,10 +376,10 @@ CombatTab:CreateButton({
 })
 
 -- ==================== Вкладка: Визуал & ESP ====================
-VisualsTab:CreateSection("Подсветка Игроков (Highlight)")
+VisualsTab:CreateSection("Подсветка Игроков")
 
 VisualsTab:CreateToggle({
-   Name = "👁️ Real Highlight ESP (Силуэты сквозь стены)",
+   Name = "👁️ Real Highlight ESP",
    CurrentValue = false,
    Callback = function(Value)
       espEnabled = Value
@@ -392,12 +397,11 @@ VisualsTab:CreateToggle({
 })
 
 VisualsTab:CreateToggle({
-   Name = "🔫 Drop Gun ESP (Подсветка пистолета)",
+   Name = "🔫 Drop Gun ESP",
    CurrentValue = false,
    Callback = function(Value) gunEspEnabled = Value end,
 })
 
--- Цикл Highlight ESP
 RunService.RenderStepped:Connect(function()
     if not espEnabled then return end
     
@@ -472,12 +476,11 @@ MiscTab:CreateButton({
 MiscTab:CreateSection("Движение и Физика")
 
 MiscTab:CreateToggle({
-   Name = "🐰 Bunny Hop (Прыгает при зажатом пробеле/прыжке)",
+   Name = "🐰 Bunny Hop",
    CurrentValue = false,
    Callback = function(Value) bunnyHopEnabled = Value end,
 })
 
--- Исправленный Рабочий Bunny Hop
 RunService.Stepped:Connect(function()
     if bunnyHopEnabled then
         local _, hum, _ = getCharacter()
@@ -490,13 +493,13 @@ RunService.Stepped:Connect(function()
 end)
 
 MiscTab:CreateToggle({
-   Name = "🧲 Auto Pick Gun (Автоподбор пистолета)",
+   Name = "🧲 Auto Pick Gun",
    CurrentValue = false,
    Callback = function(Value) autoPickGunEnabled = Value end,
 })
 
 MiscTab:CreateToggle({
-   Name = "👻 Invisible / Ghost Mode",
+   Name = "👻 Ghost Mode",
    CurrentValue = false,
    Callback = function(Value)
       ghostModeEnabled = Value
@@ -518,27 +521,14 @@ MiscTab:CreateToggle({
 })
 
 MiscTab:CreateToggle({
-   Name = "🚶 Noclip (Сквозь стены)",
+   Name = "🚶 Noclip",
    CurrentValue = false,
    Callback = function(Value) noclipEnabled = Value end,
 })
 
 -- ==================== ОБРАБОТЧИКИ СОБЫТИЙ ====================
-
--- 1. Цикл Noclip & Бессмертие
 RunService.Stepped:Connect(function()
-    if autoFarmEnabled then
-        local char, hum = getCharacter()
-        if char and hum then
-            hum.Health = 100
-            hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
-            for _, part in ipairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then part.CanCollide = false end
-            end
-        end
-    end
-    
-    if noclipEnabled then
+    if autoFarmEnabled or noclipEnabled then
         local char = getCharacter()
         if char then
             for _, part in ipairs(char:GetDescendants()) do
@@ -548,7 +538,7 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- 2. Автофарм
+-- Авто-фарм
 task.spawn(function()
     while true do
         task.wait(0.05)
@@ -623,7 +613,7 @@ task.spawn(function()
     end
 end)
 
--- 3. Aimbot
+-- Aimbot
 RunService.RenderStepped:Connect(function()
     if silentAimEnabled then
         local char, hum, root = getCharacter()
@@ -653,7 +643,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- 4. Gun Drop ESP & Auto Pick
+-- Gun Drop & Auto Pick
 local gunEspFolder = Instance.new("Folder", game.CoreGui)
 RunService.RenderStepped:Connect(function()
     gunEspFolder:ClearAllChildren()
@@ -685,7 +675,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- 5. Anti-Kill Safety
+-- Anti-Kill Safety
 RunService.Heartbeat:Connect(function()
     if not antiKillEnabled then return end
     local _, _, root = getCharacter()
@@ -706,7 +696,7 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- 6. Max Anti-Fling Protect
+-- Anti-Fling Protect
 RunService.Heartbeat:Connect(function()
     if not maxAntiFlingEnabled or isFlingingSingle or isFlingingAll or autoFarmEnabled or isSpinAuraEnabled then return end
     local char, hum, root = getCharacter()
@@ -733,9 +723,9 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- Авто-обновление списков при входе игроков
+-- События для моментального авто-обновления
 game.Players.PlayerAdded:Connect(refreshSortedPlayerLists)
 game.Players.PlayerRemoving:Connect(refreshSortedPlayerLists)
 refreshSortedPlayerLists()
 
-Rayfield:Notify({Title = "MM2 Ultimate V27.3", Content = "Сортировка ролей и фикс Крутилки/BHop готовы!", Duration = 3})
+Rayfield:Notify({Title = "MM2 Ultimate V27.4", Content = "Исправлен выбор Мардера/Шерифа и включено авто-обновление!", Duration = 3})
