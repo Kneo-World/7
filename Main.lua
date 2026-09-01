@@ -329,66 +329,86 @@ local function getMurderer()
     return nil
 end
 
--- ========== УЛЬТРА РВАНКА V26.9 ENGINE ==========
+-- ============================================================
+-- NEW ULTRA FLING ENGINE V27 (BYPASS NETWORK CAP)
+-- ============================================================
+
 local function emergencyStop()
-    isFlingingSingle = false isFlingingAll = false
-    if bav then bav:Destroy() bav = nil end
-    local char, _, root = getCharacter()
+    isFlingingSingle = false 
+    isFlingingAll = false
+    
+    local char, hum, root = getCharacter()
     if char then
         for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then part.CanCollide = true end
+            if part:IsA("BasePart") then 
+                part.CanCollide = true 
+            end
         end
     end
+    
     if root then
         root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
         root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-        if originalCFrame then root.CFrame = originalCFrame end
+        if originalCFrame then 
+            root.CFrame = originalCFrame 
+        end
     end
 end
 
 local function startFlingLoop(getTargetFunc, isRunningCheck, durationLimit)
     local char, hum, root = getCharacter()
-    if root then originalCFrame = root.CFrame end
-
-    -- Максимально возможное вращательное ускорение по всем осям
-    bav = Instance.new("BodyAngularVelocity")
-    bav.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    bav.AngularVelocity = Vector3.new(99999999, 99999999, 99999999)
-    bav.P = 9999999
-    if root then bav.Parent = root end
-
+    if not root then return end
+    
+    originalCFrame = root.CFrame
     local startTime = tick()
     local angle = 0
 
+    -- Отключаем коллизию на время рванки, чтобы не застревать
     local steppedConn = RunService.Stepped:Connect(function()
         if not isRunningCheck() then return end
         local currentChar = getCharacter()
         if currentChar then
             for _, part in ipairs(currentChar:GetDescendants()) do
-                if part:IsA("BasePart") then part.CanCollide = false end
+                if part:IsA("BasePart") then 
+                    part.CanCollide = false 
+                end
             end
         end
     end)
 
     local heartConn
     heartConn = RunService.Heartbeat:Connect(function()
-        local _, _, currentRoot = getCharacter()
+        local _, currentHum, currentRoot = getCharacter()
+        
         if not isRunningCheck() or not currentRoot or (durationLimit and (tick() - startTime > durationLimit)) then
-            heartConn:Disconnect() steppedConn:Disconnect() emergencyStop() return
+            heartConn:Disconnect() 
+            steppedConn:Disconnect() 
+            emergencyStop() 
+            return
         end
+        
         local currentTarget = getTargetFunc()
         local targetRoot = currentTarget and currentTarget.Character and (currentTarget.Character:FindFirstChild("HumanoidRootPart") or currentTarget.Character:FindFirstChild("Torso"))
+        
         if targetRoot and currentRoot then
-            angle = angle + 120
-            -- Опережение траектории цели на 0.12 сек
-            local predictedCenter = targetRoot.Position + (targetRoot.AssemblyLinearVelocity * 0.12)
-            local offsetX = math.cos(math.rad(angle)) * 0.8
-            local offsetZ = math.sin(math.rad(angle)) * 0.8
-            currentRoot.CFrame = CFrame.new(predictedCenter + Vector3.new(offsetX, 0, offsetZ))
+            angle = (angle + 100) % 360
             
-            -- Каскадный импульс 
-            currentRoot.AssemblyLinearVelocity = Vector3.new(99999999, 99999999, 99999999)
-            currentRoot.AssemblyAngularVelocity = Vector3.new(99999999, 99999999, 99999999)
+            -- Рассчитываем позицию с учетом пинга и скорости цели
+            local targetVel = targetRoot.AssemblyLinearVelocity
+            local predictedPos = targetRoot.Position + (targetVel * 0.15)
+            
+            -- Смещение вокруг цели для идеального контакта
+            local offset = Vector3.new(math.cos(math.rad(angle)) * 1.5, 0, math.sin(math.rad(angle)) * 1.5)
+            currentRoot.CFrame = CFrame.new(predictedPos + offset)
+            
+            -- Новый метод разгона физического тела (Bypasses Roblox Physics Limit)
+            local flingVelocity = Vector3.new(0, 999999, 0)
+            if angle % 20 == 0 then
+                flingVelocity = Vector3.new(999999, 999999, 999999)
+            end
+            
+            currentRoot.AssemblyLinearVelocity = flingVelocity
+            currentRoot.AssemblyAngularVelocity = Vector3.new(999999, 999999, 999999)
         end
     end)
 end
