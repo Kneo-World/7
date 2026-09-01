@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V27 (FULL RAYFIELD EDITION)
+-- MM2 ULTIMATE V27.2 (RAYFIELD EDITION + HIGHLIGHT & AURA)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -13,6 +13,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 -- ========== Переменные состояний ==========
 local isFlingingSingle = false
 local isFlingingAll = false
+local isSpinAuraEnabled = false
+local bunnyHopEnabled = false
 local espEnabled = false
 local autoFarmEnabled = false
 local autoPickGunEnabled = false
@@ -22,7 +24,9 @@ local antiKillEnabled = false
 local noclipEnabled = false
 local silentAimEnabled = false
 local maxAntiFlingEnabled = true
+
 local selectedPlayerName = nil
+local tpPlayerName = nil
 local originalCFrame = nil
 local safePointCFrame = nil
 local lastShotTime = 0
@@ -64,7 +68,7 @@ local function getMurderer()
     return nil
 end
 
--- ========== ДВИЖОК РВАНКИ V27 (BYPASS) ==========
+-- ========== ДВИЖОК РВАНКИ V27 ==========
 local function emergencyStop()
     isFlingingSingle = false 
     isFlingingAll = false
@@ -124,49 +128,43 @@ local function startFlingLoop(getTargetFunc, isRunningCheck, durationLimit)
     end)
 end
 
--- ========== СОЗДАНИЕ ИНТЕРФЕЙСА RAYFIELD ==========
+-- ========== ОКНО И ВКЛАДКИ ==========
 local Window = Rayfield:CreateWindow({
-   Name = "⚡ MM2 Ultimate V27",
-   LoadingTitle = "Загрузка панели MM2...",
+   Name = "⚡ MM2 Ultimate V27.2",
+   LoadingTitle = "Загрузка скрипта...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
 })
 
-local FlingTab = Window:CreateTab("💥 Рванка & Защита", 4483362458)
+local FlingTab = Window:CreateTab("💥 Рванка & Аура", 4483362458)
 local FarmingTab = Window:CreateTab("💰 Авто-Фарм", 4483362458)
 local CombatTab = Window:CreateTab("🎯 Аим & Бой", 4483362458)
 local VisualsTab = Window:CreateTab("👁️ Визуал & ESP", 4483362458)
-local MiscTab = Window:CreateTab("⚙️ Персонаж & Разное", 4483362458)
+local MiscTab = Window:CreateTab("⚙️ Телепорт & Разное", 4483362458)
 
--- ==================== Вкладка: Рванка & Защита ====================
-FlingTab:CreateSection("Управление Рванкой")
+-- ==================== Вкладка: Рванка & Аура ====================
+FlingTab:CreateSection("Активная Рванка")
 
 local playerDropdown = FlingTab:CreateDropdown({
    Name = "Выбрать игрока для рванки",
    Options = {"Никого"},
    CurrentOption = {"Никого"},
    MultipleOptions = false,
-   Callback = function(Option)
-      selectedPlayerName = Option[1]
-   end,
+   Callback = function(Option) selectedPlayerName = Option[1] end,
 })
 
-local function refreshPlayerList()
+local function refreshPlayerLists()
     local names = {}
     for _, p in ipairs(game.Players:GetPlayers()) do
-        if p ~= player then
-            table.insert(names, p.Name)
-        end
+        if p ~= player then table.insert(names, p.Name) end
     end
     playerDropdown:Refresh(names)
 end
 
 FlingTab:CreateButton({
-   Name = "🔄 Обновить список игроков",
-   Callback = function()
-      refreshPlayerList()
-   end,
+   Name = "🔄 Обновить списки игроков",
+   Callback = function() refreshPlayerLists() end,
 })
 
 FlingTab:CreateToggle({
@@ -179,16 +177,14 @@ FlingTab:CreateToggle({
          if targetPlr then
             startFlingLoop(function() return targetPlr end, function() return isFlingingSingle end, 10)
          else
-            Rayfield:Notify({Title = "Ошибка", Content = "Сначала выберите игрока из списка!", Duration = 2})
+            Rayfield:Notify({Title = "Ошибка", Content = "Выберите игрока!", Duration = 2})
          end
-      else
-         emergencyStop()
-      end
+      else emergencyStop() end
    end,
 })
 
 FlingTab:CreateToggle({
-   Name = "🌐 Fling All (Рванка всех по очереди)",
+   Name = "🌐 Fling All (Рванка всех)",
    CurrentValue = false,
    Callback = function(Value)
       isFlingingAll = Value
@@ -213,27 +209,45 @@ FlingTab:CreateToggle({
             emergencyStop()
          end)
          startFlingLoop(function() return currentTargetPlayer end, function() return isFlingingAll end, nil)
-      else
-         emergencyStop()
+      else emergencyStop() end
+   end,
+})
+
+FlingTab:CreateSection("Пассивная Защита & Крутилка")
+
+FlingTab:CreateToggle({
+   Name = "🌪️ Крутилка-Аура (Ходишь нормально, касание = вылет)",
+   CurrentValue = false,
+   Callback = function(Value)
+      isSpinAuraEnabled = Value
+      if not isSpinAuraEnabled then
+          local _, _, root = getCharacter()
+          if root then root.AssemblyAngularVelocity = Vector3.new(0, 0, 0) end
       end
    end,
 })
 
-FlingTab:CreateButton({
-   Name = "🛑 ЭКСТРЕННЫЙ СТОП РВАНКИ",
-   Callback = function()
-      emergencyStop()
-   end,
-})
+-- Логика Крутилки
+RunService.Heartbeat:Connect(function()
+    if not isSpinAuraEnabled or isFlingingSingle or isFlingingAll then return end
+    local char, hum, root = getCharacter()
+    if not root or not hum then return end
 
-FlingTab:CreateSection("Защита")
+    -- Принудительное вращение физического тела
+    root.AssemblyAngularVelocity = Vector3.new(0, 99999, 0)
+    
+    -- Разрешаем коллизии для соприкосновения
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then part.CanCollide = true end
+    end
+end)
+
+FlingTab:CreateButton({ Name = "🛑 ЭКСТРЕННЫЙ СТОП РВАНКИ", Callback = function() emergencyStop() end })
 
 FlingTab:CreateToggle({
-   Name = "🛡️ Max Anti-Fling (Защита от рванки)",
+   Name = "🛡️ Max Anti-Fling (Защита от чужой рванки)",
    CurrentValue = true,
-   Callback = function(Value)
-      maxAntiFlingEnabled = Value
-   end,
+   Callback = function(Value) maxAntiFlingEnabled = Value end,
 })
 
 -- ==================== Вкладка: Авто-Фарм ====================
@@ -253,9 +267,7 @@ FarmingTab:CreateButton({
 FarmingTab:CreateToggle({
    Name = "💰 Auto Farm Coins (с авто-рванкой Убийцы при 40 монетах)",
    CurrentValue = false,
-   Callback = function(Value)
-      autoFarmEnabled = Value
-   end,
+   Callback = function(Value) autoFarmEnabled = Value end,
 })
 
 -- ==================== Вкладка: Аим & Бой ====================
@@ -264,9 +276,7 @@ CombatTab:CreateSection("Боевые Функции")
 CombatTab:CreateToggle({
    Name = "🎯 Аимбот и Авто-стрельба в Убийцу",
    CurrentValue = false,
-   Callback = function(Value)
-      silentAimEnabled = Value
-   end,
+   Callback = function(Value) silentAimEnabled = Value end,
 })
 
 CombatTab:CreateButton({
@@ -277,14 +287,13 @@ CombatTab:CreateButton({
 
       local knife = char:FindFirstChild("Knife") or player.Backpack:FindFirstChild("Knife")
       if not knife then
-          Rayfield:Notify({Title = "Ошибка", Content = "Ты не Убийца! Нож не найден.", Duration = 2})
+          Rayfield:Notify({Title = "Ошибка", Content = "Ты не Убийца!", Duration = 2})
           return
       end
 
       if knife.Parent ~= char then hum:EquipTool(knife) task.wait(0.1) end
       local oldPos = root.CFrame
 
-      Rayfield:Notify({Title = "Kill All", Content = "Начало уничтожения...", Duration = 1.5})
       for _, plr in ipairs(game.Players:GetPlayers()) do
           if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0 then
               local targetRoot = plr.Character.HumanoidRootPart
@@ -300,47 +309,148 @@ CombatTab:CreateButton({
               task.wait(0.15)
           end
       end
-
       root.CFrame = oldPos
-      Rayfield:Notify({Title = "Kill All", Content = "Все игроки уничтожены!", Duration = 2})
    end,
 })
 
 -- ==================== Вкладка: Визуал & ESP ====================
-VisualsTab:CreateSection("Подсветка (ESP)")
-
-local espFolder = Instance.new("Folder", game.CoreGui)
+VisualsTab:CreateSection("Подсветка Игроков (Highlight)")
 
 VisualsTab:CreateToggle({
-   Name = "👁️ Role ESP (Подсветка ролей и дистанции)",
+   Name = "👁️ Real Highlight ESP (Силуэты сквозь стены)",
    CurrentValue = false,
    Callback = function(Value)
       espEnabled = Value
-      if not espEnabled then espFolder:ClearAllChildren() end
+      if not espEnabled then
+         for _, p in ipairs(game.Players:GetPlayers()) do
+             if p.Character then
+                 local hl = p.Character:FindFirstChild("MM2_Highlight")
+                 if hl then hl:Destroy() end
+                 local bb = p.Character:FindFirstChild("MM2_NameESP")
+                 if bb then bb:Destroy() end
+             end
+         end
+      end
    end,
 })
 
 VisualsTab:CreateToggle({
-   Name = "🔫 Drop Gun ESP (Подсветка выпавшего пистолета)",
+   Name = "🔫 Drop Gun ESP (Подсветка пистолета)",
    CurrentValue = false,
-   Callback = function(Value)
-      gunEspEnabled = Value
+   Callback = function(Value) gunEspEnabled = Value end,
+})
+
+-- Цикл Highlight ESP
+RunService.RenderStepped:Connect(function()
+    if not espEnabled then return end
+    
+    for _, plr in ipairs(game.Players:GetPlayers()) do
+        if plr ~= player and plr.Character then
+            local char = plr.Character
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            
+            if hrp then
+                -- Определяем роль и цвет
+                local color = Color3.fromRGB(0, 255, 100) -- Невинный (Зеленый)
+                if char:FindFirstChild("Knife") or plr.Backpack:FindFirstChild("Knife") then
+                    color = Color3.fromRGB(255, 0, 0) -- Мардер (Красный)
+                elseif char:FindFirstChild("Gun") or plr.Backpack:FindFirstChild("Gun") then
+                    color = Color3.fromRGB(0, 150, 255) -- Шериф (Синий)
+                end
+
+                -- Highlight (Силуэт)
+                local hl = char:FindFirstChild("MM2_Highlight")
+                if not hl then
+                    hl = Instance.new("Highlight")
+                    hl.Name = "MM2_Highlight"
+                    hl.Parent = char
+                end
+                hl.FillColor = color
+                hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                hl.FillTransparency = 0.4
+                hl.OutlineTransparency = 0
+
+                -- Name & Distance Billboard
+                local bb = char:FindFirstChild("MM2_NameESP")
+                if not bb then
+                    bb = Instance.new("BillboardGui")
+                    bb.Name = "MM2_NameESP"
+                    bb.Size = UDim2.new(0, 100, 0, 30)
+                    bb.AlwaysOnTop = true
+                    bb.Adornee = hrp
+                    
+                    local txt = Instance.new("TextLabel", bb)
+                    txt.Name = "Text"
+                    txt.Size = UDim2.new(1, 0, 1, 0)
+                    txt.BackgroundTransparency = 1
+                    txt.Font = Enum.Font.GothamBold
+                    txt.TextSize = 11
+                    txt.Parent = bb
+                    bb.Parent = char
+                end
+                
+                local _, _, myRoot = getCharacter()
+                local dist = myRoot and math.floor((myRoot.Position - hrp.Position).Magnitude) or 0
+                bb.Text.TextColor3 = color
+                bb.Text.Text = plr.Name .. "\n[" .. dist .. "m]"
+            end
+        end
+    end
+end)
+
+-- ==================== Вкладка: Телепорт & Разное ====================
+MiscTab:CreateSection("Телепортация")
+
+local tpDropdown = MiscTab:CreateDropdown({
+   Name = "Выбрать игрока для ТП",
+   Options = {"Никого"},
+   CurrentOption = {"Никого"},
+   MultipleOptions = false,
+   Callback = function(Option) tpPlayerName = Option[1] end,
+})
+
+MiscTab:CreateButton({
+   Name = "⚡ Телепортироваться к игроку",
+   Callback = function()
+      local targetPlr = game.Players:FindFirstChild(tpPlayerName or "")
+      local _, _, root = getCharacter()
+      if targetPlr and targetPlr.Character and targetPlr.Character:FindFirstChild("HumanoidRootPart") and root then
+          root.CFrame = targetPlr.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3)
+          Rayfield:Notify({Title = "Телепорт", Content = "ТП к " .. targetPlr.Name, Duration = 1.5})
+      else
+          Rayfield:Notify({Title = "Ошибка", Content = "Игрок не найден!", Duration = 2})
+      end
    end,
 })
 
--- ==================== Вкладка: Персонаж & Разное ====================
-MiscTab:CreateSection("Способности и Логика")
+MiscTab:CreateSection("Движение и Физика")
 
 MiscTab:CreateToggle({
-   Name = "🧲 Auto Pick Gun (Автоподбор выпавшего пистолета)",
+   Name = "🐰 Bunny Hop (Авто-прыжки)",
    CurrentValue = false,
-   Callback = function(Value)
-      autoPickGunEnabled = Value
-   end,
+   Callback = function(Value) bunnyHopEnabled = Value end,
+})
+
+-- Логика Bunny Hop
+RunService.RenderStepped:Connect(function()
+    if bunnyHopEnabled then
+        local char, hum, root = getCharacter()
+        if hum and hum.FloorMaterial ~= Enum.Material.Air then
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end
+    end
+end)
+
+MiscTab:CreateToggle({
+   Name = "🧲 Auto Pick Gun (Автоподбор пистолета)",
+   CurrentValue = false,
+   Callback = function(Value) autoPickGunEnabled = Value end,
 })
 
 MiscTab:CreateToggle({
-   Name = "👻 Invisible / Ghost Mode (Прозрачность)",
+   Name = "👻 Invisible / Ghost Mode",
    CurrentValue = false,
    Callback = function(Value)
       ghostModeEnabled = Value
@@ -356,27 +466,23 @@ MiscTab:CreateToggle({
 })
 
 MiscTab:CreateToggle({
-   Name = "🛡️ Anti-Kill Safety (Прыжок при приближении Убийцы)",
+   Name = "🛡️ Anti-Kill Safety",
    CurrentValue = false,
-   Callback = function(Value)
-      antiKillEnabled = Value
-   end,
+   Callback = function(Value) antiKillEnabled = Value end,
 })
 
 MiscTab:CreateToggle({
-   Name = "🚶 Noclip (Ходьба сквозь стены)",
+   Name = "🚶 Noclip (Сквозь стены)",
    CurrentValue = false,
-   Callback = function(Value)
-      noclipEnabled = Value
-   end,
+   Callback = function(Value) noclipEnabled = Value end,
 })
 
--- ==================== ФОНОВЫЕ ЦИКЛЫ И ОБРАБОТЧИКИ ====================
+-- ==================== ОБРАБОТЧИКИ СОБЫТИЙ ====================
 
--- 1. Цикл Бессмертия для Авто-Фарма & Noclip
+-- 1. Цикл Noclip & Бессмертие при автофарме
 RunService.Stepped:Connect(function()
     if autoFarmEnabled then
-        local char, hum, root = getCharacter()
+        local char, hum = getCharacter()
         if char and hum then
             hum.Health = 100
             hum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
@@ -396,15 +502,13 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- 2. Основной поток Авто-Фарма Монет
+-- 2. Автофарм
 task.spawn(function()
     while true do
         task.wait(0.05)
         if autoFarmEnabled then
             local char, hum, root = getCharacter()
             if root and hum and hum.Health > 0 then
-
-                -- Если набрано 40 монет — включаем рванку на Убийцу
                 if getCoinCount() >= 40 then
                     local murderer = getMurderer()
                     if murderer and murderer.Character and murderer.Character:FindFirstChild("HumanoidRootPart") then
@@ -419,17 +523,12 @@ task.spawn(function()
                                     isFlingingSingle = false
                                 end
                                 return isFlingingSingle 
-                            end, 
-                            nil
+                            end, nil
                         )
-
-                        while isFlingingSingle and autoFarmEnabled do
-                            task.wait(0.2)
-                        end
+                        while isFlingingSingle and autoFarmEnabled do task.wait(0.2) end
                         emergencyStop()
                     end
 
-                    -- Возврат на safe-точку
                     if safePointCFrame then
                         local _, _, currentRoot = getCharacter()
                         if currentRoot then
@@ -439,17 +538,14 @@ task.spawn(function()
                     end
                     task.wait(1)
                 else
-                    -- Сбор монет
                     local coins = {}
                     for _, obj in ipairs(workspace:GetDescendants()) do
                         if obj:IsA("BasePart") and (obj.Name == "Coin_Server" or obj.Name:find("Coin")) then
                             if obj.Transparency < 0.9 and obj.Parent then
-                                local dist = (root.Position - obj.Position).Magnitude
-                                table.insert(coins, {part = obj, distance = dist})
+                                table.insert(coins, {part = obj, distance = (root.Position - obj.Position).Magnitude})
                             end
                         end
                     end
-
                     table.sort(coins, function(a, b) return a.distance < b.distance end)
 
                     if #coins > 0 and autoFarmEnabled then
@@ -465,7 +561,6 @@ task.spawn(function()
                             local direction = (targetPos - currentRoot.Position).Unit
                             local stepDistance = math.min((targetPos - currentRoot.Position).Magnitude, flySpeed * 0.03)
                             currentRoot.CFrame = CFrame.new(currentRoot.Position + direction * stepDistance)
-
                             task.wait(0.03)
                         end
 
@@ -482,44 +577,8 @@ task.spawn(function()
     end
 end)
 
--- 3. Рендер-цикл для ESP и Aimbot
+-- 3. Aimbot
 RunService.RenderStepped:Connect(function()
-    -- Role ESP
-    if espEnabled then
-        espFolder:ClearAllChildren()
-        local _, _, myRoot = getCharacter()
-        if myRoot then
-            for _, plr in ipairs(game.Players:GetPlayers()) do
-                if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-                    local char = plr.Character
-                    local hrp = char.HumanoidRootPart
-                    local color = Color3.fromRGB(0, 255, 0)
-
-                    if char:FindFirstChild("Knife") or plr.Backpack:FindFirstChild("Knife") then
-                        color = Color3.fromRGB(255, 0, 0)
-                    elseif char:FindFirstChild("Gun") or plr.Backpack:FindFirstChild("Gun") then
-                        color = Color3.fromRGB(0, 150, 255)
-                    end
-
-                    local bb = Instance.new("BillboardGui", espFolder)
-                    bb.Adornee = hrp
-                    bb.Size = UDim2.new(0, 100, 0, 30)
-                    bb.AlwaysOnTop = true
-
-                    local txt = Instance.new("TextLabel", bb)
-                    txt.Size = UDim2.new(1, 0, 1, 0)
-                    txt.BackgroundTransparency = 1
-                    txt.TextColor3 = color
-                    txt.Font = Enum.Font.GothamBold
-                    txt.TextSize = 11
-                    local dist = math.floor((myRoot.Position - hrp.Position).Magnitude)
-                    txt.Text = plr.Name .. "\n[" .. dist .. "m]"
-                end
-            end
-        end
-    end
-
-    -- Silent Aimbot
     if silentAimEnabled then
         local char, hum, root = getCharacter()
         if char and root then
@@ -575,9 +634,7 @@ RunService.RenderStepped:Connect(function()
                 firetouchinterest(root, gunDrop, 0)
                 task.wait(0.05)
                 firetouchinterest(root, gunDrop, 1)
-            else
-                root.CFrame = gunDrop.CFrame
-            end
+            else root.CFrame = gunDrop.CFrame end
         end
     end
 end)
@@ -594,8 +651,7 @@ RunService.Heartbeat:Connect(function()
             if char:FindFirstChild("Knife") then
                 local murdHrp = char:FindFirstChild("HumanoidRootPart")
                 if murdHrp then
-                    local dist = (root.Position - murdHrp.Position).Magnitude
-                    if dist < 12 then
+                    if (root.Position - murdHrp.Position).Magnitude < 12 then
                         root.CFrame = root.CFrame + Vector3.new(0, 15, 0)
                     end
                 end
@@ -606,7 +662,7 @@ end)
 
 -- 6. Max Anti-Fling Protect
 RunService.Heartbeat:Connect(function()
-    if not maxAntiFlingEnabled or isFlingingSingle or isFlingingAll or autoFarmEnabled then return end
+    if not maxAntiFlingEnabled or isFlingingSingle or isFlingingAll or autoFarmEnabled or isSpinAuraEnabled then return end
     local char, hum, root = getCharacter()
     if not char or not root or not hum then return end
 
@@ -631,6 +687,9 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- Инициализация списка игроков
-refreshPlayerList()
-Rayfield:Notify({Title = "⚡ MM2 Ultimate V27", Content = "Интерфейс и все функции успешно загружены!", Duration = 4})
+-- Автообновление списков при входе/выходе игроков
+game.Players.PlayerAdded:Connect(refreshPlayerLists)
+game.Players.PlayerRemoving:Connect(refreshPlayerLists)
+refreshPlayerLists()
+
+Rayfield:Notify({Title = "⚡ MM2 Ultimate V27.2", Content = "Все функции (Highlight ESP, Аура, ТП, BHop) готовы!", Duration = 4})
