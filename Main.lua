@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V30.0 (DIRECT DRAWING ENGINE - 100% ESP FIX)
+-- MM2 ULTIMATE V31.0 (FPS AIMBOT FOR SHERIFF + DRAWING ESP)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -21,7 +21,6 @@ local gunEspEnabled = false
 local ghostModeEnabled = false
 local antiKillEnabled = false
 local noclipEnabled = false
-local silentAimEnabled = false
 local maxAntiFlingEnabled = false
 
 -- Visual Flags
@@ -31,6 +30,15 @@ local espTracersEnabled = false
 local customCrosshairEnabled = false
 local customFovEnabled = false
 local targetFovValue = 70
+
+-- AIMBOT SYSTEM VARIABLES
+local aimbotEnabled = false
+local aimbotAutoShoot = false
+local aimbotWallCheck = true
+local aimbotShowFov = true
+local aimbotFovRadius = 150
+local aimbotSmoothness = 0.25 -- 0.05 (очень плавно) ... 1 (мгновенно)
+local aimbotTargetPart = "Head" -- "Head" или "HumanoidRootPart"
 
 local selectedPlayerName = nil
 local tpPlayerName = nil
@@ -67,6 +75,17 @@ local function getRoleName(plr)
         return "SHERIFF"
     end
     return "Innocent"
+end
+
+local function getMurderer()
+    for _, plr in ipairs(game.Players:GetPlayers()) do
+        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            if plr.Character:FindFirstChild("Knife") or (plr:FindFirstChild("Backpack") and plr.Backpack:FindFirstChild("Knife")) then
+                return plr
+            end
+        end
+    end
+    return nil
 end
 
 -- ========== ДВИЖОК РВАНКИ ==========
@@ -131,18 +150,185 @@ end
 
 -- ========== ОКНО RAYFIELD ==========
 local Window = Rayfield:CreateWindow({
-   Name = "✨ MM2 Ultimate V30.0 (Direct Render Engine)",
-   LoadingTitle = "Загрузка UI & Drawing ESP...",
+   Name = "✨ MM2 Ultimate V31.0 (FPS Aimbot & Direct Render)",
+   LoadingTitle = "Загрузка UI, Aimbot & ESP...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
 })
 
+local CombatTab = Window:CreateTab("🎯 FPS Аимбот & Бой", 4483362458)
 local VisualsTab = Window:CreateTab("👁️ Визуал & ESP", 4483362458)
 local FlingTab = Window:CreateTab("💥 Рванка & Аура", 4483362458)
 local FarmingTab = Window:CreateTab("💰 Авто-Фарм", 4483362458)
-local CombatTab = Window:CreateTab("🎯 Аим & Бой", 4483362458)
 local MiscTab = Window:CreateTab("⚙️ Разное & Настройки", 4483362458)
+
+-- ==================== Вкладка: АИМБОТ & БОЙ ====================
+CombatTab:CreateSection("🎯 FPS Аимбот на Убийцу (Включение на N)")
+
+local aimToggle = CombatTab:CreateToggle({
+   Name = "🎯 Аимбот Активирован [Клавиша N]",
+   CurrentValue = false,
+   Callback = function(Value) 
+      aimbotEnabled = Value 
+   end,
+})
+
+CombatTab:CreateDropdown({
+   Name = "🎯 Цель Прицеливания",
+   Options = {"Голова (Head)", "Торс (HumanoidRootPart)"},
+   CurrentOption = {"Голова (Head)"},
+   MultipleOptions = false,
+   Callback = function(Option)
+      if Option[1] == "Голова (Head)" then
+         aimbotTargetPart = "Head"
+      else
+         aimbotTargetPart = "HumanoidRootPart"
+      end
+   end,
+})
+
+CombatTab:CreateSlider({
+   Name = "⚡ Плавность Наведения (Smoothness)",
+   Range = {5, 100},
+   Increment = 5,
+   Suffix = "%",
+   CurrentValue = 25,
+   Callback = function(Value)
+      aimbotSmoothness = Value / 100
+   end,
+})
+
+CombatTab:CreateSlider({
+   Name = "⭕ Радиус FOV Аимбота",
+   Range = {50, 500},
+   Increment = 10,
+   Suffix = "px",
+   CurrentValue = 150,
+   Callback = function(Value)
+      aimbotFovRadius = Value
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "⭕ Показывать Круг FOV",
+   CurrentValue = true,
+   Callback = function(Value) aimbotShowFov = Value end,
+})
+
+CombatTab:CreateToggle({
+   Name = "🧱 Проверка Стен (Wall Check)",
+   CurrentValue = true,
+   Callback = function(Value) aimbotWallCheck = Value end,
+})
+
+CombatTab:CreateToggle({
+   Name = "🔫 Авто-Выстрел при наведении",
+   CurrentValue = false,
+   Callback = function(Value) aimbotAutoShoot = Value end,
+})
+
+CombatTab:CreateSection("🔪 Дополнительный Бой")
+
+CombatTab:CreateButton({
+   Name = "🔪 KILL ALL (Убить всех за Мардера)",
+   Callback = function()
+      local char, hum, root = getCharacter()
+      if not char then return end
+
+      local knife = char:FindFirstChild("Knife") or (player:FindFirstChild("Backpack") and player.Backpack:FindFirstChild("Knife"))
+      if not knife then
+          Rayfield:Notify({Title = "Ошибка", Content = "Ты не Убийца!", Duration = 2})
+          return
+      end
+
+      if knife.Parent ~= char then hum:EquipTool(knife) task.wait(0.1) end
+      local oldPos = root.CFrame
+
+      for _, plr in ipairs(game.Players:GetPlayers()) do
+          if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0 then
+              local targetRoot = plr.Character.HumanoidRootPart
+              root.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 1.2)
+              knife:Activate()
+              
+              local knifeHandle = knife:FindFirstChild("Handle") or knife:FindFirstChildWhichIsA("BasePart")
+              if knifeHandle and firetouchinterest then
+                  firetouchinterest(knifeHandle, targetRoot, 0)
+                  task.wait(0.03)
+                  firetouchinterest(knifeHandle, targetRoot, 1)
+              end
+              task.wait(0.15)
+          end
+      end
+      root.CFrame = oldPos
+   end,
+})
+
+-- Переключение Аимбота на клавишу N
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.N then
+        aimbotEnabled = not aimbotEnabled
+        aimToggle:Set(aimbotEnabled)
+        Rayfield:Notify({
+            Title = "Аимбот",
+            Content = aimbotEnabled and "🎯 Аимбот ВКЛЮЧЁН (Клавиша N)" or "🚫 Аимбот ВЫКЛЮЧЁН (Клавиша N)",
+            Duration = 1.5
+        })
+    end
+end)
+
+-- ДВИЖОК АИМБОТА И КРУГА FOV
+local fovCircle = Drawing.new("Circle")
+fovCircle.Thickness = 1.5
+fovCircle.Color = Color3.fromRGB(255, 50, 50)
+fovCircle.Filled = false
+fovCircle.Transparency = 1
+fovCircle.NumSides = 32
+
+RunService.RenderStepped:Connect(function()
+    local mousePos = UserInputService:GetMouseLocation()
+    fovCircle.Position = mousePos
+    fovCircle.Radius = aimbotFovRadius
+    fovCircle.Visible = aimbotEnabled and aimbotShowFov
+
+    if not aimbotEnabled then return end
+
+    local murderer = getMurderer()
+    if not murderer or not murderer.Character then return end
+
+    local targetPart = murderer.Character:FindFirstChild(aimbotTargetPart) or murderer.Character:FindFirstChild("HumanoidRootPart")
+    if not targetPart then return end
+
+    local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+    if not onScreen then return end
+
+    local distToMouse = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+    if distToMouse > aimbotFovRadius then return end
+
+    -- Wall Check (Проверка препятствий)
+    if aimbotWallCheck then
+        local myChar = player.Character
+        if myChar then
+            local ray = Ray.new(Camera.CFrame.Position, (targetPart.Position - Camera.CFrame.Position).Unit * 500)
+            local ignoreList = {myChar, murderer.Character}
+            local hit = Workspace:FindPartOnRayWithIgnoreList(ray, ignoreList)
+            if hit and not hit:IsDescendantOf(murderer.Character) then return end
+        end
+    end
+
+    -- Плавный поворот камеры на цель (FPS Smooth Aimbot)
+    local targetCFrame = CFrame.new(Camera.CFrame.Position, targetPart.Position)
+    Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, aimbotSmoothness)
+
+    -- Авто-выстрел за Шерифа
+    if aimbotAutoShoot then
+        local char, hum, _ = getCharacter()
+        local gun = char and char:FindFirstChild("Gun")
+        if gun then
+            gun:Activate()
+        end
+    end
+end)
 
 -- ==================== Вкладка: ВИЗУАЛ & ESP ====================
 VisualsTab:CreateSection("🔥 Drawing ESP (Прямой рендер поверх экрана)")
@@ -192,7 +378,6 @@ VisualsTab:CreateToggle({
 })
 
 -- ==================== ПРЯМОЙ DRAWING ESP ДВИЖОК ====================
-
 local ESP_Objects = {}
 
 local function createEspForPlayer(plr)
@@ -204,18 +389,15 @@ local function createEspForPlayer(plr)
         Text = Drawing.new("Text")
     }
 
-    -- Настройки линий
     objects.Tracer.Thickness = 1.5
     objects.Tracer.Transparency = 1
     objects.Tracer.Visible = false
 
-    -- Настройки бокса
     objects.Box.Thickness = 1.5
     objects.Box.Filled = false
     objects.Box.Transparency = 1
     objects.Box.Visible = false
 
-    -- Настройки текста
     objects.Text.Size = 14
     objects.Text.Center = true
     objects.Text.Outline = true
@@ -284,17 +466,15 @@ RunService.RenderStepped:Connect(function()
                 local _, _, myRoot = getCharacter()
                 local dist = myRoot and math.floor((myRoot.Position - hrp.Position).Magnitude) or 0
 
-                -- 1. Tracers (Линии)
+                -- Tracers
                 if espTracersEnabled then
                     objs.Tracer.From = Vector2.new(viewportSize.X / 2, viewportSize.Y)
                     objs.Tracer.To = Vector2.new(hrpPos.X, hrpPos.Y)
                     objs.Tracer.Color = color
                     objs.Tracer.Visible = true
-                else
-                    objs.Tracer.Visible = false
-                end
+                else objs.Tracer.Visible = false end
 
-                -- 2. Box (Боксы)
+                -- Box
                 if espBoxesEnabled then
                     local boxHeight = math.abs(headPos.Y - legPos.Y)
                     local boxWidth = boxHeight * 0.65
@@ -303,19 +483,15 @@ RunService.RenderStepped:Connect(function()
                     objs.Box.Position = Vector2.new(hrpPos.X - (boxWidth / 2), headPos.Y)
                     objs.Box.Color = color
                     objs.Box.Visible = true
-                else
-                    objs.Box.Visible = false
-                end
+                else objs.Box.Visible = false end
 
-                -- 3. Text Info (Ники/Роли)
+                -- Text Info
                 if espInfoEnabled then
                     objs.Text.Position = Vector2.new(hrpPos.X, headPos.Y - 18)
                     objs.Text.Text = string.format("%s [%s] | %d m", plr.Name, roleText, dist)
                     objs.Text.Color = color
                     objs.Text.Visible = true
-                else
-                    objs.Text.Visible = false
-                end
+                else objs.Text.Visible = false end
             else
                 objs.Tracer.Visible = false
                 objs.Box.Visible = false
@@ -506,49 +682,6 @@ FarmingTab:CreateToggle({
    Callback = function(Value) autoFarmEnabled = Value end,
 })
 
--- ==================== Вкладка: АИМ & БОЙ ====================
-CombatTab:CreateSection("Боевые Функции")
-
-CombatTab:CreateToggle({
-   Name = "🎯 Аимбот и Авто-стрельба в Убийцу",
-   CurrentValue = false,
-   Callback = function(Value) silentAimEnabled = Value end,
-})
-
-CombatTab:CreateButton({
-   Name = "🔪 KILL ALL (Убить всех за Мардера)",
-   Callback = function()
-      local char, hum, root = getCharacter()
-      if not char then return end
-
-      local knife = char:FindFirstChild("Knife") or (player:FindFirstChild("Backpack") and player.Backpack:FindFirstChild("Knife"))
-      if not knife then
-          Rayfield:Notify({Title = "Ошибка", Content = "Ты не Убийца!", Duration = 2})
-          return
-      end
-
-      if knife.Parent ~= char then hum:EquipTool(knife) task.wait(0.1) end
-      local oldPos = root.CFrame
-
-      for _, plr in ipairs(game.Players:GetPlayers()) do
-          if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0 then
-              local targetRoot = plr.Character.HumanoidRootPart
-              root.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 1.2)
-              knife:Activate()
-              
-              local knifeHandle = knife:FindFirstChild("Handle") or knife:FindFirstChildWhichIsA("BasePart")
-              if knifeHandle and firetouchinterest then
-                  firetouchinterest(knifeHandle, targetRoot, 0)
-                  task.wait(0.03)
-                  firetouchinterest(knifeHandle, targetRoot, 1)
-              end
-              task.wait(0.15)
-          end
-      end
-      root.CFrame = oldPos
-   end,
-})
-
 -- ==================== Вкладка: РАЗНОЕ ====================
 MiscTab:CreateSection("Телепортация")
 
@@ -676,4 +809,4 @@ RunService.Heartbeat:Connect(function()
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 end)
 
-Rayfield:Notify({Title = "MM2 Ultimate V30.0", Content = "Drawing ESP активирован! Теперь видно ВСЕХ!", Duration = 3})
+Rayfield:Notify({Title = "MM2 Ultimate V31.0", Content = "FPS Аимбот готов! Нажми 'N' для включения/выключения.", Duration = 4})
