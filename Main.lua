@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V35.0 (100% FIXED MOBILE SHOOT + WALLBANG)
+-- MM2 ULTIMATE V36.0 (TOUCH SHOOT & AUTO-TRIGGER FIX)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -31,12 +31,12 @@ local customCrosshairEnabled = false
 local customFovEnabled = false
 local targetFovValue = 70
 
--- AIMBOT & MOBILE SHOOT
+-- MOBILE AIMBOT & TRIGGER
 local aimbotEnabled = false
-local mobileButtonEnabled = true
+local autoTriggerEnabled = false
 local aimbotShowFov = true
-local aimbotFovRadius = 300
-local wallbangEnabled = true
+local aimbotFovRadius = 250
+local wallbangEnabled = false
 
 local selectedPlayerName = nil
 local tpPlayerName = nil
@@ -86,164 +86,26 @@ local function getMurderer()
     return nil
 end
 
--- ========== ФУНКЦИЯ ПРИНУДИТЕЛЬНОГО ВЫСТРЕЛА С ТЕЛЕФОНА ==========
-local function shootAtMurderer()
-    local char, hum, root = getCharacter()
-    if not char then return end
-
-    local gun = char:FindFirstChild("Gun") or (player:FindFirstChild("Backpack") and player.Backpack:FindFirstChild("Gun"))
-    if not gun then
-        Rayfield:Notify({Title = "Ошибка", Content = "У тебя нет пистолета!", Duration = 2})
-        return
-    end
-
-    if gun.Parent ~= char and hum then
-        hum:EquipTool(gun)
-        task.wait(0.1)
-    end
-
-    local murderer = getMurderer()
-    if murderer and murderer.Character and murderer.Character:FindFirstChild("HumanoidRootPart") then
-        local targetHead = murderer.Character:FindFirstChild("Head") or murderer.Character.HumanoidRootPart
-        
-        -- Выстрел через Activate() + прямое создание луча/события
-        gun:Activate()
-
-        -- Эмуляция подмены координат выстрела (Wallbang & Silent Aim)
-        local knifeServer = Workspace:FindFirstChild("KnifeServer") or Workspace:FindFirstChild("Ray")
-        for _, obj in ipairs(Workspace:GetChildren()) do
-            if obj.Name == "Bullet" or obj.Name == "Ray" or obj.Name == "KnifeServer" then
-                if obj:IsA("BasePart") then
-                    obj.CFrame = targetHead.CFrame
-                end
-            end
-        end
-    else
-        gun:Activate()
-    end
-end
-
--- ========== ДВИЖОК РВАНКИ ==========
-local function emergencyStop()
-    isFlingingSingle = false 
-    isFlingingAll = false
-    local char, _, root = getCharacter()
-    if char then
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then part.CanCollide = true end
-        end
-    end
-    if root then
-        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-        root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-        if originalCFrame then root.CFrame = originalCFrame end
-    end
-end
-
-local function startFlingLoop(getTargetFunc, isRunningCheck, durationLimit)
-    local char, hum, root = getCharacter()
-    if not root then return end
-    originalCFrame = root.CFrame
-    local startTime = tick()
-    local angle = 0
-
-    local steppedConn = RunService.Stepped:Connect(function()
-        if not isRunningCheck() then return end
-        local currentChar = getCharacter()
-        if currentChar then
-            for _, part in ipairs(currentChar:GetDescendants()) do
-                if part:IsA("BasePart") then part.CanCollide = false end
-            end
-        end
-    end)
-
-    local heartConn
-    heartConn = RunService.Heartbeat:Connect(function()
-        local _, _, currentRoot = getCharacter()
-        if not isRunningCheck() or not currentRoot or (durationLimit and (tick() - startTime > durationLimit)) then
-            heartConn:Disconnect() 
-            steppedConn:Disconnect() 
-            emergencyStop() 
-            return
-        end
-        
-        local currentTarget = getTargetFunc()
-        local targetRoot = currentTarget and currentTarget.Character and (currentTarget.Character:FindFirstChild("HumanoidRootPart") or currentTarget.Character:FindFirstChild("Torso"))
-        
-        if targetRoot and currentRoot then
-            angle = (angle + 100) % 360
-            local targetVel = targetRoot.AssemblyLinearVelocity
-            local predictedPos = targetRoot.Position + (targetVel * 0.15)
-            local offset = Vector3.new(math.cos(math.rad(angle)) * 1.5, 0, math.sin(math.rad(angle)) * 1.5)
-            
-            currentRoot.CFrame = CFrame.new(predictedPos + offset)
-            currentRoot.AssemblyLinearVelocity = (angle % 20 == 0) and Vector3.new(999999, 999999, 999999) or Vector3.new(0, 999999, 0)
-            currentRoot.AssemblyAngularVelocity = Vector3.new(999999, 999999, 999999)
-        end
-    end)
-end
-
 -- ========== ОКНО RAYFIELD ==========
 local Window = Rayfield:CreateWindow({
-   Name = "✨ MM2 V35.0 (MOBILE SHOOT BUTTON FIX)",
-   LoadingTitle = "Загрузка мобильной кнопки выстрела...",
+   Name = "✨ MM2 V36.0 (FIX TOUCH SHOOT)",
+   LoadingTitle = "Загрузка фикса тапа по экрану...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
 })
 
-local CombatTab = Window:CreateTab("🎯 Аимбот & Стрельба ТФ", 4483362458)
+local CombatTab = Window:CreateTab("🎯 Сенсорный Аимбот", 4483362458)
 local VisualsTab = Window:CreateTab("👁️ Визуал & ESP", 4483362458)
 local FlingTab = Window:CreateTab("💥 Рванка & Аура", 4483362458)
 local FarmingTab = Window:CreateTab("💰 Авто-Фарм", 4483362458)
 local MiscTab = Window:CreateTab("⚙️ Разное & Настройки", 4483362458)
 
--- ==================== СОЗДАНИЕ МОБИЛЬНОЙ КНОПКИ СТРЕЛЬБЫ ====================
-local mobileGui = Instance.new("ScreenGui")
-mobileGui.Name = "MM2MobileShootGui"
-mobileGui.ResetOnSpawn = false
-
-if gethui then
-    mobileGui.Parent = gethui()
-elseif syn and syn.protect_gui then
-    syn.protect_gui(mobileGui)
-    mobileGui.Parent = game.CoreGui
-else
-    mobileGui.Parent = game.CoreGui
-end
-
-local shootBtn = Instance.new("TextButton")
-shootBtn.Name = "ShootButton"
-shootBtn.Parent = mobileGui
-shootBtn.Size = UDim2.new(0, 75, 0, 75)
-shootBtn.Position = UDim2.new(0.8, -35, 0.5, -35)
-shootBtn.BackgroundColor3 = Color3.fromRGB(220, 30, 30)
-shootBtn.Text = "🎯\nВЫСТРЕЛ"
-shootBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-shootBtn.TextSize = 14
-shootBtn.Font = Enum.Font.SourceSansBold
-shootBtn.Active = true
-shootBtn.Draggable = true
-shootBtn.Visible = false
-
-local btnCorner = Instance.new("UICorner")
-btnCorner.CornerRadius = UDim.new(0, 50)
-btnCorner.Parent = shootBtn
-
-local btnStroke = Instance.new("UIStroke")
-btnStroke.Thickness = 3
-btnStroke.Color = Color3.fromRGB(255, 255, 255)
-btnStroke.Parent = shootBtn
-
-shootBtn.MouseButton1Click:Connect(function()
-    shootAtMurderer()
-end)
-
 -- ==================== Вкладка: АИМБОТ & БОЙ ====================
-CombatTab:CreateSection("📱 Стрельба с Телефона (100% Работает)")
+CombatTab:CreateSection("📱 Аимбот под Тапы Экрана")
 
 CombatTab:CreateToggle({
-   Name = "🎯 Авто-Перехват выстрела (Silent Aim)",
+   Name = "🎯 Доводка Камеры на Мардера (Touch Lock)",
    CurrentValue = false,
    Callback = function(Value) 
       aimbotEnabled = Value 
@@ -251,27 +113,27 @@ CombatTab:CreateToggle({
 })
 
 CombatTab:CreateToggle({
-   Name = "📱 Мобильная кнопка «🎯 ВЫСТРЕЛ» на экран",
-   CurrentValue = true,
+   Name = "⚡ Auto-Trigger Shoot (Авто-Выстрел при наведении)",
+   CurrentValue = false,
    Callback = function(Value) 
-      shootBtn.Visible = Value 
+      autoTriggerEnabled = Value 
    end,
 })
 
 CombatTab:CreateToggle({
-   Name = "🧱 Прострел сквозь стены (Wallbang)",
-   CurrentValue = true,
+   Name = "🧱 Wallbang (Выстрел через стены)",
+   CurrentValue = false,
    Callback = function(Value) 
       wallbangEnabled = Value 
    end,
 })
 
 CombatTab:CreateSlider({
-   Name = "⭕ Зона срабатывания (FOV)",
-   Range = {50, 800},
-   Increment = 20,
+   Name = "⭕ Радиус захвата (FOV)",
+   Range = {50, 600},
+   Increment = 10,
    Suffix = "px",
-   CurrentValue = 300,
+   CurrentValue = 250,
    Callback = function(Value)
       aimbotFovRadius = Value
    end,
@@ -322,52 +184,61 @@ CombatTab:CreateButton({
 -- ОТРИСОВКА FOV КРУГА
 local fovCircle = Drawing.new("Circle")
 fovCircle.Thickness = 2
-fovCircle.Color = Color3.fromRGB(0, 255, 150)
+fovCircle.Color = Color3.fromRGB(255, 50, 50)
 fovCircle.Filled = false
 fovCircle.Transparency = 0.8
 fovCircle.NumSides = 36
+
+-- ========== ЛОГИКА ДОВДКИ КАМЕРЫ И АВТО-ВЫСТРЕЛА ==========
+local lastShotTime = 0
 
 RunService.RenderStepped:Connect(function()
     local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     fovCircle.Position = screenCenter
     fovCircle.Radius = aimbotFovRadius
-    fovCircle.Visible = aimbotEnabled and aimbotShowFov
-end)
+    fovCircle.Visible = (aimbotEnabled or autoTriggerEnabled) and aimbotShowFov
 
--- SILENT AIM & WALLBANG HOOK (ПОДМЕНА АРГУМЕНТОВ)
-local oldNamecall
-oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-    local method = getnamecallmethod()
-    local args = {...}
+    local murderer = getMurderer()
+    if murderer and murderer.Character and murderer.Character:FindFirstChild("Head") then
+        local targetHead = murderer.Character.Head
+        local screenPos, onScreen = Camera:WorldToViewportPoint(targetHead.Position)
+        local targetScreenPos = Vector2.new(screenPos.X, screenPos.Y)
+        local distanceToCenter = (targetScreenPos - screenCenter).Magnitude
 
-    if (aimbotEnabled or wallbangEnabled) and (method == "FireServer" or method == "InvokeServer") then
-        local murderer = getMurderer()
-        if murderer and murderer.Character and murderer.Character:FindFirstChild("Head") then
-            local targetHead = murderer.Character.Head
-            for i, arg in ipairs(args) do
-                if typeof(arg) == "Vector3" then
-                    args[i] = targetHead.Position
-                elseif typeof(arg) == "CFrame" then
-                    args[i] = CFrame.new(targetHead.Position)
+        -- Если Мардер в FOV
+        if onScreen and distanceToCenter <= aimbotFovRadius then
+            -- Доводка камеры
+            if aimbotEnabled then
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHead.Position)
+            end
+
+            -- Авто-выстрел (Triggerbot)
+            if autoTriggerEnabled and (tick() - lastShotTime > 0.5) then
+                local char, hum, _ = getCharacter()
+                if char then
+                    local gun = char:FindFirstChild("Gun") or (player:FindFirstChild("Backpack") and player.Backpack:FindFirstChild("Gun"))
+                    if gun then
+                        if gun.Parent ~= char and hum then
+                            hum:EquipTool(gun)
+                        end
+                        gun:Activate()
+                        lastShotTime = tick()
+                    end
                 end
             end
         end
     end
-    return oldNamecall(self, unpack(args))
 end)
 
--- ТЕЛЕПОРТАЦИЯ ПУЛИ В ГОЛОВУ МАРДЕРА (WALLBANG)
-task.spawn(function()
-    while true do
-        task.wait(0.02)
-        if wallbangEnabled or aimbotEnabled then
-            local murderer = getMurderer()
-            if murderer and murderer.Character and murderer.Character:FindFirstChild("HumanoidRootPart") then
-                for _, obj in ipairs(Workspace:GetChildren()) do
-                    if obj.Name == "KnifeServer" or obj.Name == "Bullet" or obj.Name == "Ray" then
-                        if obj:IsA("BasePart") then
-                            obj.CFrame = murderer.Character.HumanoidRootPart.CFrame
-                        end
+-- WALLBANG ДЛЯ ТАПА ПО ЭКРАНУ
+RunService.Heartbeat:Connect(function()
+    if wallbangEnabled then
+        local murderer = getMurderer()
+        if murderer and murderer.Character and murderer.Character:FindFirstChild("HumanoidRootPart") then
+            for _, obj in ipairs(Workspace:GetChildren()) do
+                if obj.Name == "KnifeServer" or obj.Name == "Bullet" or obj.Name == "Ray" then
+                    if obj:IsA("BasePart") then
+                        obj.CFrame = murderer.Character.HumanoidRootPart.CFrame
                     end
                 end
             end
@@ -604,6 +475,66 @@ task.spawn(function()
         task.wait(2)
     end
 end)
+
+-- ДВИЖОК РВАНКИ
+local function emergencyStop()
+    isFlingingSingle = false 
+    isFlingingAll = false
+    local char, _, root = getCharacter()
+    if char then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = true end
+        end
+    end
+    if root then
+        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        if originalCFrame then root.CFrame = originalCFrame end
+    end
+end
+
+local function startFlingLoop(getTargetFunc, isRunningCheck, durationLimit)
+    local char, hum, root = getCharacter()
+    if not root then return end
+    originalCFrame = root.CFrame
+    local startTime = tick()
+    local angle = 0
+
+    local steppedConn = RunService.Stepped:Connect(function()
+        if not isRunningCheck() then return end
+        local currentChar = getCharacter()
+        if currentChar then
+            for _, part in ipairs(currentChar:GetDescendants()) do
+                if part:IsA("BasePart") then part.CanCollide = false end
+            end
+        end
+    end)
+
+    local heartConn
+    heartConn = RunService.Heartbeat:Connect(function()
+        local _, _, currentRoot = getCharacter()
+        if not isRunningCheck() or not currentRoot or (durationLimit and (tick() - startTime > durationLimit)) then
+            heartConn:Disconnect() 
+            steppedConn:Disconnect() 
+            emergencyStop() 
+            return
+        end
+        
+        local currentTarget = getTargetFunc()
+        local targetRoot = currentTarget and currentTarget.Character and (currentTarget.Character:FindFirstChild("HumanoidRootPart") or currentTarget.Character:FindFirstChild("Torso"))
+        
+        if targetRoot and currentRoot then
+            angle = (angle + 100) % 360
+            local targetVel = targetRoot.AssemblyLinearVelocity
+            local predictedPos = targetRoot.Position + (targetVel * 0.15)
+            local offset = Vector3.new(math.cos(math.rad(angle)) * 1.5, 0, math.sin(math.rad(angle)) * 1.5)
+            
+            currentRoot.CFrame = CFrame.new(predictedPos + offset)
+            currentRoot.AssemblyLinearVelocity = (angle % 20 == 0) and Vector3.new(999999, 999999, 999999) or Vector3.new(0, 999999, 0)
+            currentRoot.AssemblyAngularVelocity = Vector3.new(999999, 999999, 999999)
+        end
+    end)
+end
 
 FlingTab:CreateToggle({
    Name = "💥 Рванка выбранного игрока (10 сек)",
@@ -846,4 +777,4 @@ RunService.Heartbeat:Connect(function()
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 end)
 
-Rayfield:Notify({Title = "MM2 Ultimate V35.0", Content = "Мобильная кнопка выстрела активирована!", Duration = 4})
+Rayfield:Notify({Title = "MM2 Ultimate V36.0", Content = "Фикс сенсорной стрельбы загружен!", Duration = 4})
