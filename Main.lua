@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V36.0 (TOUCH SHOOT & AUTO-TRIGGER FIX)
+-- MM2 ULTIMATE V37.0 (FIXED WALLBANG & TOUCH SHOOT)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -31,12 +31,12 @@ local customCrosshairEnabled = false
 local customFovEnabled = false
 local targetFovValue = 70
 
--- MOBILE AIMBOT & TRIGGER
+-- MOBILE AIMBOT & WALLBANG
 local aimbotEnabled = false
 local autoTriggerEnabled = false
 local aimbotShowFov = true
 local aimbotFovRadius = 250
-local wallbangEnabled = false
+local wallbangEnabled = true
 
 local selectedPlayerName = nil
 local tpPlayerName = nil
@@ -88,8 +88,8 @@ end
 
 -- ========== ОКНО RAYFIELD ==========
 local Window = Rayfield:CreateWindow({
-   Name = "✨ MM2 V36.0 (FIX TOUCH SHOOT)",
-   LoadingTitle = "Загрузка фикса тапа по экрану...",
+   Name = "✨ MM2 V37.0 (WORKING WALLBANG FIX)",
+   LoadingTitle = "Загрузка прострела через стены...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
@@ -113,7 +113,7 @@ CombatTab:CreateToggle({
 })
 
 CombatTab:CreateToggle({
-   Name = "⚡ Auto-Trigger Shoot (Авто-Выстрел при наведении)",
+   Name = "⚡ Auto-Trigger Shoot (Авто-Выстрел)",
    CurrentValue = false,
    Callback = function(Value) 
       autoTriggerEnabled = Value 
@@ -121,8 +121,8 @@ CombatTab:CreateToggle({
 })
 
 CombatTab:CreateToggle({
-   Name = "🧱 Wallbang (Выстрел через стены)",
-   CurrentValue = false,
+   Name = "🧱 Wallbang (Прострел сквозь стены)",
+   CurrentValue = true,
    Callback = function(Value) 
       wallbangEnabled = Value 
    end,
@@ -189,7 +189,7 @@ fovCircle.Filled = false
 fovCircle.Transparency = 0.8
 fovCircle.NumSides = 36
 
--- ========== ЛОГИКА ДОВДКИ КАМЕРЫ И АВТО-ВЫСТРЕЛА ==========
+-- ========== ЛОГИКА ДОВДКИ И АВТО-ВЫСТРЕЛА ==========
 local lastShotTime = 0
 
 RunService.RenderStepped:Connect(function()
@@ -205,22 +205,17 @@ RunService.RenderStepped:Connect(function()
         local targetScreenPos = Vector2.new(screenPos.X, screenPos.Y)
         local distanceToCenter = (targetScreenPos - screenCenter).Magnitude
 
-        -- Если Мардер в FOV
-        if onScreen and distanceToCenter <= aimbotFovRadius then
-            -- Доводка камеры
-            if aimbotEnabled then
+        if (onScreen and distanceToCenter <= aimbotFovRadius) or wallbangEnabled then
+            if aimbotEnabled and onScreen then
                 Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHead.Position)
             end
 
-            -- Авто-выстрел (Triggerbot)
-            if autoTriggerEnabled and (tick() - lastShotTime > 0.5) then
+            if autoTriggerEnabled and (tick() - lastShotTime > 0.4) then
                 local char, hum, _ = getCharacter()
                 if char then
                     local gun = char:FindFirstChild("Gun") or (player:FindFirstChild("Backpack") and player.Backpack:FindFirstChild("Gun"))
                     if gun then
-                        if gun.Parent ~= char and hum then
-                            hum:EquipTool(gun)
-                        end
+                        if gun.Parent ~= char and hum then hum:EquipTool(gun) end
                         gun:Activate()
                         lastShotTime = tick()
                     end
@@ -230,15 +225,42 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- WALLBANG ДЛЯ ТАПА ПО ЭКРАНУ
-RunService.Heartbeat:Connect(function()
+-- ========== НАСТОЯЩИЙ ДВИЖОК WALLBANG (ПРОСТРЕЛ СТЕН) ==========
+Workspace.ChildAdded:Connect(function(child)
     if wallbangEnabled then
         local murderer = getMurderer()
-        if murderer and murderer.Character and murderer.Character:FindFirstChild("HumanoidRootPart") then
+        if murderer and murderer.Character and murderer.Character:FindFirstChild("Head") then
+            local targetHead = murderer.Character.Head
+            
+            -- Проверяем появление объекта выстрела (Bullet / KnifeServer / Ray)
+            if child.Name == "Bullet" or child.Name == "Ray" or child.Name == "KnifeServer" then
+                if child:IsA("BasePart") then
+                    child.CanCollide = false
+                    child.CFrame = targetHead.CFrame
+                    
+                    -- Создаём прямой физический TouchInterest для гарантированного попадания
+                    if firetouchinterest then
+                        firetouchinterest(child, targetHead, 0)
+                        task.wait(0.01)
+                        firetouchinterest(child, targetHead, 1)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Дополнительный фоновый обход стен
+RunService.Stepped:Connect(function()
+    if wallbangEnabled then
+        local murderer = getMurderer()
+        if murderer and murderer.Character and murderer.Character:FindFirstChild("Head") then
+            local targetHead = murderer.Character.Head
             for _, obj in ipairs(Workspace:GetChildren()) do
-                if obj.Name == "KnifeServer" or obj.Name == "Bullet" or obj.Name == "Ray" then
+                if obj.Name == "Bullet" or obj.Name == "Ray" then
                     if obj:IsA("BasePart") then
-                        obj.CFrame = murderer.Character.HumanoidRootPart.CFrame
+                        obj.CanCollide = false
+                        obj.CFrame = targetHead.CFrame
                     end
                 end
             end
@@ -777,4 +799,4 @@ RunService.Heartbeat:Connect(function()
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 end)
 
-Rayfield:Notify({Title = "MM2 Ultimate V36.0", Content = "Фикс сенсорной стрельбы загружен!", Duration = 4})
+Rayfield:Notify({Title = "MM2 Ultimate V37.0", Content = "Прострел стен (Wallbang) успешно настроен!", Duration = 4})
