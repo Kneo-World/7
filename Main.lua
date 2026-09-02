@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V33.0 (MOBILE + PC AIMBOT + WALLBANG SHERIFF)
+-- MM2 ULTIMATE V34.0 (FIXED MOBILE AIMBOT & SILENT AIM)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -31,14 +31,12 @@ local customCrosshairEnabled = false
 local customFovEnabled = false
 local targetFovValue = 70
 
--- AIMBOT & WALLBANG VARIABLES
+-- AIMBOT & SILENT AIM
 local aimbotEnabled = false
 local aimbotAutoShoot = false
 local aimbotShowFov = true
-local aimbotFovRadius = 180
-local aimbotSmoothness = 0.3 -- Плавность (для телефона чем меньше, тем резче)
-local aimbotTargetPart = "Head"
-local wallbangEnabled = false -- Прострел сквозь стены
+local aimbotFovRadius = 250
+local wallbangEnabled = true
 
 local selectedPlayerName = nil
 local tpPlayerName = nil
@@ -150,24 +148,24 @@ end
 
 -- ========== ОКНО RAYFIELD ==========
 local Window = Rayfield:CreateWindow({
-   Name = "✨ MM2 V33.0 (WALLBANG + MOBILE AIMBOT)",
-   LoadingTitle = "Загрузка UI, Aimbot & Wallbang...",
+   Name = "✨ MM2 V34.0 (MOBILE FIXED SILENT AIM)",
+   LoadingTitle = "Исправление стрельбы для телефонов...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
 })
 
-local CombatTab = Window:CreateTab("🎯 FPS Аимбот & Прострел", 4483362458)
+local CombatTab = Window:CreateTab("🎯 Silent Aimbot (Телефон)", 4483362458)
 local VisualsTab = Window:CreateTab("👁️ Визуал & ESP", 4483362458)
 local FlingTab = Window:CreateTab("💥 Рванка & Аура", 4483362458)
 local FarmingTab = Window:CreateTab("💰 Авто-Фарм", 4483362458)
 local MiscTab = Window:CreateTab("⚙️ Разное & Настройки", 4483362458)
 
 -- ==================== Вкладка: АИМБОТ & БОЙ ====================
-CombatTab:CreateSection("🎯 Настройки Аимбота (Телефон + ПК)")
+CombatTab:CreateSection("🎯 Silent Aimbot (Свободная стрельба на ТФ)")
 
-local aimToggle = CombatTab:CreateToggle({
-   Name = "🎯 Аимбот Активирован",
+CombatTab:CreateToggle({
+   Name = "📱 Silent Aim (Не блокирует стрельбу)",
    CurrentValue = false,
    Callback = function(Value) 
       aimbotEnabled = Value 
@@ -175,57 +173,32 @@ local aimToggle = CombatTab:CreateToggle({
 })
 
 CombatTab:CreateToggle({
-   Name = "🧱 WALLBANG (Прострел Мардера сквозь стены)",
-   CurrentValue = false,
+   Name = "🧱 Прострел сквозь стены (Wallbang)",
+   CurrentValue = true,
    Callback = function(Value) 
       wallbangEnabled = Value 
    end,
 })
 
-CombatTab:CreateDropdown({
-   Name = "🎯 Цель Прицеливания",
-   Options = {"Голова (Head)", "Торс (HumanoidRootPart)"},
-   CurrentOption = {"Голова (Head)"},
-   MultipleOptions = false,
-   Callback = function(Option)
-      if Option[1] == "Голова (Head)" then
-         aimbotTargetPart = "Head"
-      else
-         aimbotTargetPart = "HumanoidRootPart"
-      end
-   end,
-})
-
 CombatTab:CreateSlider({
-   Name = "⚡ Плавность Наведения",
-   Range = {5, 100},
-   Increment = 5,
-   Suffix = "%",
-   CurrentValue = 30,
-   Callback = function(Value)
-      aimbotSmoothness = Value / 100
-   end,
-})
-
-CombatTab:CreateSlider({
-   Name = "⭕ Радиус FOV Аимбота",
-   Range = {50, 600},
-   Increment = 10,
+   Name = "⭕ Зона срабатывания (FOV)",
+   Range = {50, 800},
+   Increment = 20,
    Suffix = "px",
-   CurrentValue = 200,
+   CurrentValue = 300,
    Callback = function(Value)
       aimbotFovRadius = Value
    end,
 })
 
 CombatTab:CreateToggle({
-   Name = "⭕ Показывать Круг FOV",
+   Name = "⭕ Показывать FOV Круг",
    CurrentValue = true,
    Callback = function(Value) aimbotShowFov = Value end,
 })
 
 CombatTab:CreateToggle({
-   Name = "🔫 Авто-Выстрел при наведении",
+   Name = "⚡ Авто-выстрел (Спам кнопкой)",
    CurrentValue = false,
    Callback = function(Value) aimbotAutoShoot = Value end,
 })
@@ -266,20 +239,12 @@ CombatTab:CreateButton({
    end,
 })
 
--- Переключение Аимбота на ПК по кнопке N
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if not gameProcessed and input.KeyCode == Enum.KeyCode.N then
-        aimbotEnabled = not aimbotEnabled
-        aimToggle:Set(aimbotEnabled)
-    end
-end)
-
--- ДВИЖОК АИМБОТА ДЛЯ ТЕЛЕФОНА И ПК
+-- OTPРИСОВКА FOV КРУГА
 local fovCircle = Drawing.new("Circle")
 fovCircle.Thickness = 2
-fovCircle.Color = Color3.fromRGB(255, 30, 30)
+fovCircle.Color = Color3.fromRGB(0, 255, 150)
 fovCircle.Filled = false
-fovCircle.Transparency = 1
+fovCircle.Transparency = 0.8
 fovCircle.NumSides = 36
 
 RunService.RenderStepped:Connect(function()
@@ -288,28 +253,9 @@ RunService.RenderStepped:Connect(function()
     fovCircle.Radius = aimbotFovRadius
     fovCircle.Visible = aimbotEnabled and aimbotShowFov
 
-    if not aimbotEnabled then return end
-
-    local murderer = getMurderer()
-    if not murderer or not murderer.Character then return end
-
-    local targetPart = murderer.Character:FindFirstChild(aimbotTargetPart) or murderer.Character:FindFirstChild("HumanoidRootPart")
-    if not targetPart then return end
-
-    local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
-    if not onScreen then return end
-
-    local targetVec2 = Vector2.new(screenPos.X, screenPos.Y)
-    local distToCenter = (targetVec2 - screenCenter).Magnitude
-    if distToCenter > aimbotFovRadius then return end
-
-    -- 100% Mobile & PC Camera Locking (Игнорирует блокировки устройства)
-    local targetCFrame = CFrame.lookAt(Camera.CFrame.Position, targetPart.Position)
-    Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, aimbotSmoothness)
-
-    -- Авто-выстрел с поддержкой Wallbang
-    if aimbotAutoShoot then
-        local char, hum, _ = getCharacter()
+    -- Авто-выстрел
+    if aimbotEnabled and aimbotAutoShoot then
+        local char, _, _ = getCharacter()
         local gun = char and char:FindFirstChild("Gun")
         if gun then
             gun:Activate()
@@ -317,24 +263,29 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ==================== ДВИЖОК WALLBANG (ПРОСТРЕЛ) ====================
--- Перехват выстрела пистолета и телепортация пули
+-- ==================== SILENT AIM + WALLBANG HOOK ====================
+-- Перехват пули при выстреле с телефона без движения камеры!
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
     local method = getnamecallmethod()
     local args = {...}
 
-    if wallbangEnabled and (method == "FireServer" or method == "InvokeServer") then
+    if aimbotEnabled and (method == "FireServer" or method == "InvokeServer") then
         local murderer = getMurderer()
         if murderer and murderer.Character and murderer.Character:FindFirstChild("Head") then
             local targetHead = murderer.Character.Head
-            
-            -- Подмена аргументов координат выстрела на голову Мардера
-            for i, arg in ipairs(args) do
-                if typeof(arg) == "Vector3" then
-                    args[i] = targetHead.Position
-                elseif typeof(arg) == "CFrame" then
-                    args[i] = CFrame.new(targetHead.Position)
+            local screenPos, onScreen = Camera:WorldToViewportPoint(targetHead.Position)
+            local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+            local dist = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+
+            -- Если Мардер на экране и в пределах FOV
+            if onScreen and dist <= aimbotFovRadius then
+                for i, arg in ipairs(args) do
+                    if typeof(arg) == "Vector3" then
+                        args[i] = targetHead.Position
+                    elseif typeof(arg) == "CFrame" then
+                        args[i] = CFrame.new(targetHead.Position)
+                    end
                 end
             end
         end
@@ -342,19 +293,15 @@ oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
     return oldNamecall(self, unpack(args))
 end)
 
--- Дополнительный Wallbang через симуляцию попадания
+-- Мгновенная доставка пули в Мардера (Wallbang)
 task.spawn(function()
     while true do
-        task.wait(0.05)
-        if wallbangEnabled then
+        task.wait(0.02)
+        if aimbotEnabled or wallbangEnabled then
             local murderer = getMurderer()
-            local char, _, _ = getCharacter()
-            local gun = char and char:FindFirstChild("Gun")
-            
-            if gun and murderer and murderer.Character and murderer.Character:FindFirstChild("HumanoidRootPart") then
-                -- Если пуля появляется в workspace, мгновенно телепортируем её
+            if murderer and murderer.Character and murderer.Character:FindFirstChild("HumanoidRootPart") then
                 for _, obj in ipairs(Workspace:GetChildren()) do
-                    if obj.Name == "KnifeServer" or obj.Name == "Bullet" or obj.Name == "Ray" or obj.Name == "GunDrop" then
+                    if obj.Name == "KnifeServer" or obj.Name == "Bullet" or obj.Name == "Ray" then
                         if obj:IsA("BasePart") then
                             obj.CFrame = murderer.Character.HumanoidRootPart.CFrame
                         end
@@ -836,4 +783,4 @@ RunService.Heartbeat:Connect(function()
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 end)
 
-Rayfield:Notify({Title = "MM2 Ultimate V33.0", Content = "Всё готово! Прострел + Аимбот загружены!", Duration = 4})
+Rayfield:Notify({Title = "MM2 Ultimate V34.0", Content = "Стрельба с телефона полностью исправлена!", Duration = 4})
