@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V31.0 (FPS AIMBOT FOR SHERIFF + DRAWING ESP)
+-- MM2 ULTIMATE V33.0 (MOBILE + PC AIMBOT + WALLBANG SHERIFF)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -31,14 +31,14 @@ local customCrosshairEnabled = false
 local customFovEnabled = false
 local targetFovValue = 70
 
--- AIMBOT SYSTEM VARIABLES
+-- AIMBOT & WALLBANG VARIABLES
 local aimbotEnabled = false
 local aimbotAutoShoot = false
-local aimbotWallCheck = true
 local aimbotShowFov = true
-local aimbotFovRadius = 150
-local aimbotSmoothness = 0.25 -- 0.05 (очень плавно) ... 1 (мгновенно)
-local aimbotTargetPart = "Head" -- "Head" или "HumanoidRootPart"
+local aimbotFovRadius = 180
+local aimbotSmoothness = 0.3 -- Плавность (для телефона чем меньше, тем резче)
+local aimbotTargetPart = "Head"
+local wallbangEnabled = false -- Прострел сквозь стены
 
 local selectedPlayerName = nil
 local tpPlayerName = nil
@@ -60,11 +60,11 @@ end
 local function getRoleColor(plr)
     if not plr or not plr.Character then return Color3.fromRGB(0, 255, 120) end
     if plr.Character:FindFirstChild("Knife") or (plr:FindFirstChild("Backpack") and plr.Backpack:FindFirstChild("Knife")) then
-        return Color3.fromRGB(255, 35, 35) -- Murderer (Красный)
+        return Color3.fromRGB(255, 35, 35) -- Murderer
     elseif plr.Character:FindFirstChild("Gun") or (plr:FindFirstChild("Backpack") and plr.Backpack:FindFirstChild("Gun")) then
-        return Color3.fromRGB(35, 135, 255) -- Sheriff (Синий)
+        return Color3.fromRGB(35, 135, 255) -- Sheriff
     end
-    return Color3.fromRGB(0, 255, 120) -- Innocent (Зелёный)
+    return Color3.fromRGB(0, 255, 120) -- Innocent
 end
 
 local function getRoleName(plr)
@@ -150,27 +150,35 @@ end
 
 -- ========== ОКНО RAYFIELD ==========
 local Window = Rayfield:CreateWindow({
-   Name = "✨ MM2 Ultimate V31.0 (FPS Aimbot & Direct Render)",
-   LoadingTitle = "Загрузка UI, Aimbot & ESP...",
+   Name = "✨ MM2 V33.0 (WALLBANG + MOBILE AIMBOT)",
+   LoadingTitle = "Загрузка UI, Aimbot & Wallbang...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
 })
 
-local CombatTab = Window:CreateTab("🎯 FPS Аимбот & Бой", 4483362458)
+local CombatTab = Window:CreateTab("🎯 FPS Аимбот & Прострел", 4483362458)
 local VisualsTab = Window:CreateTab("👁️ Визуал & ESP", 4483362458)
 local FlingTab = Window:CreateTab("💥 Рванка & Аура", 4483362458)
 local FarmingTab = Window:CreateTab("💰 Авто-Фарм", 4483362458)
 local MiscTab = Window:CreateTab("⚙️ Разное & Настройки", 4483362458)
 
 -- ==================== Вкладка: АИМБОТ & БОЙ ====================
-CombatTab:CreateSection("🎯 FPS Аимбот на Убийцу (Включение на N)")
+CombatTab:CreateSection("🎯 Настройки Аимбота (Телефон + ПК)")
 
 local aimToggle = CombatTab:CreateToggle({
-   Name = "🎯 Аимбот Активирован [Клавиша N]",
+   Name = "🎯 Аимбот Активирован",
    CurrentValue = false,
    Callback = function(Value) 
       aimbotEnabled = Value 
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "🧱 WALLBANG (Прострел Мардера сквозь стены)",
+   CurrentValue = false,
+   Callback = function(Value) 
+      wallbangEnabled = Value 
    end,
 })
 
@@ -189,11 +197,11 @@ CombatTab:CreateDropdown({
 })
 
 CombatTab:CreateSlider({
-   Name = "⚡ Плавность Наведения (Smoothness)",
+   Name = "⚡ Плавность Наведения",
    Range = {5, 100},
    Increment = 5,
    Suffix = "%",
-   CurrentValue = 25,
+   CurrentValue = 30,
    Callback = function(Value)
       aimbotSmoothness = Value / 100
    end,
@@ -201,10 +209,10 @@ CombatTab:CreateSlider({
 
 CombatTab:CreateSlider({
    Name = "⭕ Радиус FOV Аимбота",
-   Range = {50, 500},
+   Range = {50, 600},
    Increment = 10,
    Suffix = "px",
-   CurrentValue = 150,
+   CurrentValue = 200,
    Callback = function(Value)
       aimbotFovRadius = Value
    end,
@@ -217,18 +225,12 @@ CombatTab:CreateToggle({
 })
 
 CombatTab:CreateToggle({
-   Name = "🧱 Проверка Стен (Wall Check)",
-   CurrentValue = true,
-   Callback = function(Value) aimbotWallCheck = Value end,
-})
-
-CombatTab:CreateToggle({
    Name = "🔫 Авто-Выстрел при наведении",
    CurrentValue = false,
    Callback = function(Value) aimbotAutoShoot = Value end,
 })
 
-CombatTab:CreateSection("🔪 Дополнительный Бой")
+CombatTab:CreateSection("🔪 Быстрый Бой")
 
 CombatTab:CreateButton({
    Name = "🔪 KILL ALL (Убить всех за Мардера)",
@@ -264,30 +266,25 @@ CombatTab:CreateButton({
    end,
 })
 
--- Переключение Аимбота на клавишу N
+-- Переключение Аимбота на ПК по кнопке N
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if not gameProcessed and input.KeyCode == Enum.KeyCode.N then
         aimbotEnabled = not aimbotEnabled
         aimToggle:Set(aimbotEnabled)
-        Rayfield:Notify({
-            Title = "Аимбот",
-            Content = aimbotEnabled and "🎯 Аимбот ВКЛЮЧЁН (Клавиша N)" or "🚫 Аимбот ВЫКЛЮЧЁН (Клавиша N)",
-            Duration = 1.5
-        })
     end
 end)
 
--- ДВИЖОК АИМБОТА И КРУГА FOV
+-- ДВИЖОК АИМБОТА ДЛЯ ТЕЛЕФОНА И ПК
 local fovCircle = Drawing.new("Circle")
-fovCircle.Thickness = 1.5
-fovCircle.Color = Color3.fromRGB(255, 50, 50)
+fovCircle.Thickness = 2
+fovCircle.Color = Color3.fromRGB(255, 30, 30)
 fovCircle.Filled = false
 fovCircle.Transparency = 1
-fovCircle.NumSides = 32
+fovCircle.NumSides = 36
 
 RunService.RenderStepped:Connect(function()
-    local mousePos = UserInputService:GetMouseLocation()
-    fovCircle.Position = mousePos
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    fovCircle.Position = screenCenter
     fovCircle.Radius = aimbotFovRadius
     fovCircle.Visible = aimbotEnabled and aimbotShowFov
 
@@ -302,25 +299,15 @@ RunService.RenderStepped:Connect(function()
     local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
     if not onScreen then return end
 
-    local distToMouse = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-    if distToMouse > aimbotFovRadius then return end
+    local targetVec2 = Vector2.new(screenPos.X, screenPos.Y)
+    local distToCenter = (targetVec2 - screenCenter).Magnitude
+    if distToCenter > aimbotFovRadius then return end
 
-    -- Wall Check (Проверка препятствий)
-    if aimbotWallCheck then
-        local myChar = player.Character
-        if myChar then
-            local ray = Ray.new(Camera.CFrame.Position, (targetPart.Position - Camera.CFrame.Position).Unit * 500)
-            local ignoreList = {myChar, murderer.Character}
-            local hit = Workspace:FindPartOnRayWithIgnoreList(ray, ignoreList)
-            if hit and not hit:IsDescendantOf(murderer.Character) then return end
-        end
-    end
-
-    -- Плавный поворот камеры на цель (FPS Smooth Aimbot)
-    local targetCFrame = CFrame.new(Camera.CFrame.Position, targetPart.Position)
+    -- 100% Mobile & PC Camera Locking (Игнорирует блокировки устройства)
+    local targetCFrame = CFrame.lookAt(Camera.CFrame.Position, targetPart.Position)
     Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, aimbotSmoothness)
 
-    -- Авто-выстрел за Шерифа
+    -- Авто-выстрел с поддержкой Wallbang
     if aimbotAutoShoot then
         local char, hum, _ = getCharacter()
         local gun = char and char:FindFirstChild("Gun")
@@ -330,8 +317,56 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+-- ==================== ДВИЖОК WALLBANG (ПРОСТРЕЛ) ====================
+-- Перехват выстрела пистолета и телепортация пули
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+
+    if wallbangEnabled and (method == "FireServer" or method == "InvokeServer") then
+        local murderer = getMurderer()
+        if murderer and murderer.Character and murderer.Character:FindFirstChild("Head") then
+            local targetHead = murderer.Character.Head
+            
+            -- Подмена аргументов координат выстрела на голову Мардера
+            for i, arg in ipairs(args) do
+                if typeof(arg) == "Vector3" then
+                    args[i] = targetHead.Position
+                elseif typeof(arg) == "CFrame" then
+                    args[i] = CFrame.new(targetHead.Position)
+                end
+            end
+        end
+    end
+    return oldNamecall(self, unpack(args))
+end)
+
+-- Дополнительный Wallbang через симуляцию попадания
+task.spawn(function()
+    while true do
+        task.wait(0.05)
+        if wallbangEnabled then
+            local murderer = getMurderer()
+            local char, _, _ = getCharacter()
+            local gun = char and char:FindFirstChild("Gun")
+            
+            if gun and murderer and murderer.Character and murderer.Character:FindFirstChild("HumanoidRootPart") then
+                -- Если пуля появляется в workspace, мгновенно телепортируем её
+                for _, obj in ipairs(Workspace:GetChildren()) do
+                    if obj.Name == "KnifeServer" or obj.Name == "Bullet" or obj.Name == "Ray" or obj.Name == "GunDrop" then
+                        if obj:IsA("BasePart") then
+                            obj.CFrame = murderer.Character.HumanoidRootPart.CFrame
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
 -- ==================== Вкладка: ВИЗУАЛ & ESP ====================
-VisualsTab:CreateSection("🔥 Drawing ESP (Прямой рендер поверх экрана)")
+VisualsTab:CreateSection("🔥 Drawing ESP")
 
 VisualsTab:CreateToggle({
    Name = "📜 Имена + Роли + Дистанция",
@@ -346,7 +381,7 @@ VisualsTab:CreateToggle({
 })
 
 VisualsTab:CreateToggle({
-   Name = "📏 Snaplines / Tracers (Линии к игрокам)",
+   Name = "📏 Snaplines / Tracers",
    CurrentValue = false,
    Callback = function(Value) espTracersEnabled = Value end,
 })
@@ -377,7 +412,7 @@ VisualsTab:CreateToggle({
    Callback = function(Value) customCrosshairEnabled = Value end,
 })
 
--- ==================== ПРЯМОЙ DRAWING ESP ДВИЖОК ====================
+-- ПРЯМОЙ DRAWING ESP ДВИЖОК
 local ESP_Objects = {}
 
 local function createEspForPlayer(plr)
@@ -416,14 +451,11 @@ local function removeEspForPlayer(plr)
     end
 end
 
-for _, plr in ipairs(game.Players:GetPlayers()) do
-    createEspForPlayer(plr)
-end
-
+for _, plr in ipairs(game.Players:GetPlayers()) do createEspForPlayer(plr) end
 game.Players.PlayerAdded:Connect(createEspForPlayer)
 game.Players.PlayerRemoving:Connect(removeEspForPlayer)
 
--- Кастомный прицел
+-- Прицел
 local crossLineH = Drawing.new("Line")
 local crossLineV = Drawing.new("Line")
 crossLineH.Thickness = 2
@@ -434,7 +466,6 @@ crossLineV.Color = Color3.fromRGB(0, 255, 200)
 RunService.RenderStepped:Connect(function()
     if customFovEnabled then Camera.FieldOfView = targetFovValue end
 
-    -- Отрисовка прицела
     local viewportSize = Camera.ViewportSize
     local center = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
     if customCrosshairEnabled then
@@ -450,7 +481,6 @@ RunService.RenderStepped:Connect(function()
         crossLineV.Visible = false
     end
 
-    -- Отрисовка ESP
     for plr, objs in pairs(ESP_Objects) do
         if plr and plr.Parent and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChild("Head") then
             local hrp = plr.Character.HumanoidRootPart
@@ -466,7 +496,6 @@ RunService.RenderStepped:Connect(function()
                 local _, _, myRoot = getCharacter()
                 local dist = myRoot and math.floor((myRoot.Position - hrp.Position).Magnitude) or 0
 
-                -- Tracers
                 if espTracersEnabled then
                     objs.Tracer.From = Vector2.new(viewportSize.X / 2, viewportSize.Y)
                     objs.Tracer.To = Vector2.new(hrpPos.X, hrpPos.Y)
@@ -474,7 +503,6 @@ RunService.RenderStepped:Connect(function()
                     objs.Tracer.Visible = true
                 else objs.Tracer.Visible = false end
 
-                -- Box
                 if espBoxesEnabled then
                     local boxHeight = math.abs(headPos.Y - legPos.Y)
                     local boxWidth = boxHeight * 0.65
@@ -485,7 +513,6 @@ RunService.RenderStepped:Connect(function()
                     objs.Box.Visible = true
                 else objs.Box.Visible = false end
 
-                -- Text Info
                 if espInfoEnabled then
                     objs.Text.Position = Vector2.new(hrpPos.X, headPos.Y - 18)
                     objs.Text.Text = string.format("%s [%s] | %d m", plr.Name, roleText, dist)
@@ -809,4 +836,4 @@ RunService.Heartbeat:Connect(function()
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 end)
 
-Rayfield:Notify({Title = "MM2 Ultimate V31.0", Content = "FPS Аимбот готов! Нажми 'N' для включения/выключения.", Duration = 4})
+Rayfield:Notify({Title = "MM2 Ultimate V33.0", Content = "Всё готово! Прострел + Аимбот загружены!", Duration = 4})
