@@ -759,10 +759,6 @@ local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer
 
--- Анимация сидения/эмоции (задаем напрямую рабочий ID)
-local roflAnimation = Instance.new("Animation")
-roflAnimation.AnimationId = "rbxassetid://250622329" -- Стандартный рабочий ID анимации
-
 local isRoflEnabled = false
 local selectedPlayerName = ""
 local roflTrack = nil
@@ -796,7 +792,7 @@ local PlayerDropdown = RoflTab:CreateDropdown({
    end,
 })
 
--- Авто-обновление списка игроков
+-- Обновление списка
 local function refreshDropdown()
     if PlayerDropdown and PlayerDropdown.Set then
         PlayerDropdown:Set(getPlayerList())
@@ -806,44 +802,57 @@ end
 Players.PlayerAdded:Connect(refreshDropdown)
 Players.PlayerRemoving:Connect(refreshDropdown)
 
--- 2. Переключатель (Toggle)
+-- 2. Запуск эмоции через встроенный Humanoid:PlayEmote
+local function stopEmote(humanoid)
+    if roflTrack then
+        pcall(function() roflTrack:Stop() end)
+        roflTrack = nil
+    end
+end
+
+local function startEmote(humanoid)
+    if not humanoid then return end
+    stopEmote(humanoid)
+
+    -- Способ 1: Пробуем запустить эмоцию по имени из каталога Roblox
+    local success = pcall(function()
+        humanoid:PlayEmote("Dying Fish")
+    end)
+
+    -- Способ 2: Если эмоция по названию не сработала, запускаем базовый клиентский клип
+    if not success then
+        pcall(function()
+            local anim = Instance.new("Animation")
+            anim.AnimationId = "rbxassetid://180436334" -- Стандартная системная анимация (Sit)
+            local animator = humanoid:FindFirstChildOfClass("Animator") or humanoid
+            roflTrack = animator:LoadAnimation(anim)
+            roflTrack.Priority = Enum.AnimationPriority.Action4
+            roflTrack.Looped = true
+            roflTrack:Play()
+        end)
+    end
+end
+
+-- 3. Переключатель (Toggle)
 RoflTab:CreateToggle({
    Name = "🤡 Включить Head Attach",
    CurrentValue = false,
    Callback = function(Value)
       isRoflEnabled = Value
-      if not Value and roflTrack then
-          roflTrack:Stop()
-          roflTrack = nil
+      local myChar = LocalPlayer.Character
+      local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+      if not Value and myHum then
+          stopEmote(myHum)
       end
    end,
 })
 
--- Функция проигрывания анимации с защитой от ошибок
-local function playEmote(humanoid)
-    if not humanoid or not roflAnimation.AnimationId or roflAnimation.AnimationId == "" then return nil end
-    local animator = humanoid:FindFirstChildOfClass("Animator") or humanoid
-    
-    local success, track = pcall(function()
-        return animator:LoadAnimation(roflAnimation)
-    end)
-    
-    if success and track then
-        track.Priority = Enum.AnimationPriority.Action4
-        track.Looped = true
-        track:Play()
-        return track
-    end
-    return nil
-end
-
--- Основной цикл телепортации и привязки
+-- Основной цикл привязки
 RunService.Heartbeat:Connect(function()
     if not isRoflEnabled or selectedPlayerName == "" or selectedPlayerName == "Нет игроков" then 
-        if roflTrack then 
-            roflTrack:Stop()
-            roflTrack = nil
-        end
+        local myChar = LocalPlayer.Character
+        local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+        if myHum and roflTrack then stopEmote(myHum) end
         return 
     end
 
@@ -859,29 +868,25 @@ RunService.Heartbeat:Connect(function()
     if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Head") then
         local targetHead = targetPlayer.Character.Head
         
-        -- Безопасный запуск анимации
+        -- Старт эмоции 1 раз при включении
         if not roflTrack then
-            roflTrack = playEmote(myHum)
+            startEmote(myHum)
         end
 
-        -- Отключение коллизий деталей
+        -- Отключаем коллизию
         for _, part in ipairs(myChar:GetChildren()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
             end
         end
 
-        -- Разворот поясом/животом к лицу цели и посадка на голову
+        -- Разворот поясом к лицу цели и посадка на голову
         myRoot.CFrame = targetHead.CFrame * CFrame.new(0, 1.0, 0) * CFrame.Angles(0, math.rad(90), 0)
         
-        -- Сброс скорости физики
         myRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
         myRoot.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
     else
-        if roflTrack then
-            roflTrack:Stop()
-            roflTrack = nil
-        end
+        stopEmote(myHum)
     end
 end)
 
