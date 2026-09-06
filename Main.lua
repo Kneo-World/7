@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V37.2 (DIRECT EVENT WALLBANG ENGINE)
+-- MM2 ULTIMATE V37.3 (COBALT-PROOF SHOOT HOOK)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -96,7 +96,7 @@ local function getMurdererTargetPart()
     return nil
 end
 
--- ==================== ИВЕНТ СИСТЕМА WALLBANG (Ивент: "Shoot") ====================
+-- ==================== СИСТЕМА WALLBANG ПО КАРТЕ COBALT ====================
 local shootEvent = ReplicatedStorage:FindFirstChild("Shoot", true)
 
 if shootEvent and shootEvent:IsA("RemoteEvent") then
@@ -107,13 +107,23 @@ if shootEvent and shootEvent:IsA("RemoteEvent") then
         
         if wallbangEnabled then
             local targetPart = getMurdererTargetPart()
+            
             if targetPart then
-                -- Подменяем координаты выстрела на позицию головы Мардера
-                for i = 1, #args do
-                    if typeof(args[i]) == "Vector3" then
-                        args[i] = targetPart.Position
-                    elseif typeof(args[i]) == "CFrame" then
-                        args[i] = targetPart.CFrame
+                local targetCFrame = targetPart.CFrame
+                
+                -- Согласно Cobalt Spy, Shoot запрашивает 2 CFrame:
+                -- Arg 1: Начало луча (выстрел)
+                -- Arg 2: Конец луча (цель)
+                if #args >= 2 then
+                    args[1] = targetCFrame * CFrame.new(0, 0, -0.5) -- Точка перед лицом Мардера
+                    args[2] = targetCFrame                        -- Сама голова/туловище Мардера
+                else
+                    for i = 1, #args do
+                        if typeof(args[i]) == "CFrame" then
+                            args[i] = targetCFrame
+                        elseif typeof(args[i]) == "Vector3" then
+                            args[i] = targetPart.Position
+                        end
                     end
                 end
             end
@@ -123,7 +133,7 @@ if shootEvent and shootEvent:IsA("RemoteEvent") then
     end
 end
 
--- Дополнительная подстраховка: Телепорт спавнящихся пуль/лучей прямо в Мардера
+-- Дополнительный физический телепорт спавнящейся пули (Резерв)
 Workspace.ChildAdded:Connect(function(child)
     if not wallbangEnabled then return end
     
@@ -146,8 +156,8 @@ end)
 
 -- ========== ОКНО RAYFIELD ==========
 local Window = Rayfield:CreateWindow({
-   Name = "✨ MM2 V37.2 (SHOOT EVENT WALLBANG)",
-   LoadingTitle = "Загрузка скрипта и ивента Shoot...",
+   Name = "✨ MM2 V37.3 (COBALT WALLBANG FIX)",
+   LoadingTitle = "Загрузка скрипта и хука Shoot...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
@@ -163,7 +173,7 @@ local MiscTab = Window:CreateTab("⚙️ Разное & Настройки", 448
 CombatTab:CreateSection("📱 Аимбот под Тапы Экрана")
 
 CombatTab:CreateToggle({
-   Name = "🧱 Wallbang через Ивент Shoot",
+   Name = "🧱 Wallbang (Игнорирование стен)",
    CurrentValue = true,
    Callback = function(Value) 
       wallbangEnabled = Value 
@@ -814,4 +824,4 @@ RunService.Heartbeat:Connect(function()
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 end)
 
-Rayfield:Notify({Title = "MM2 Ultimate V37.2", Content = "Хук события Shoot настроен!", Duration = 4})
+Rayfield:Notify({Title = "MM2 Ultimate V37.3", Content = "Хук Shoot обновлён под Cobalt!", Duration = 4})
