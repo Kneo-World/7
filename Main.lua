@@ -754,44 +754,16 @@ FlingTab:CreateToggle({
 })
 
 -- ==================== Вкладка: ROFL ====================
-RoflTab:CreateSection("Настройки Привязки к Голове")
-
-RoflTab:CreateInput({
-   Name = "Имя цели (Target Name)",
-   PlaceholderText = "Введите ник или его часть...",
-   RemoveTextOnFocusLost = false,
-   Callback = function(Text)
-      roflTargetName = Text
-   end,
-})
-
-local function setRoflAnimation(state)
-    local char, hum = getCharacter()
-    if not char or not hum then return end
-
-    if state then
-        if not roflTrack then
-            local anim = Instance.new("Animation")
-            anim.AnimationId = "rbxassetid://" .. tostring(roflAnimationId)
-            roflTrack = hum:LoadAnimation(anim)
-            roflTrack.Priority = Enum.AnimationPriority.Action
-            roflTrack:Play()
-        end
-    else
-        if roflTrack then
-            roflTrack:Stop()
-            roflTrack = nil
-        end
-    end
-end
-
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local InsertService = game:GetService("InsertService")
 
--- Загружаем правильный ID эмоции "Dying Fish"
+local LocalPlayer = Players.LocalPlayer
+
+-- Настройка эмоции Dying Fish
 local emoteAssetId = 120673504606569
 local roflAnimation = Instance.new("Animation")
 
--- Пробуем вытянуть AnimationTrack напрямую
 pcall(function()
     local asset = InsertService:LoadAsset(emoteAssetId)
     local anim = asset:FindFirstChildWhichIsA("Animation", true)
@@ -802,18 +774,70 @@ pcall(function()
     end
 end)
 
-local function playRoflEmote(humanoid)
+local isRoflEnabled = false
+local selectedPlayerName = ""
+local roflTrack = nil
+
+-- Функция получения списка имен всех игроков (кроме себя)
+local function getPlayerList()
+    local list = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            table.insert(list, plr.Name)
+        end
+    end
+    if #list == 0 then
+        table.insert(list, "Нет игроков")
+    end
+    return list
+end
+
+-- 1. Выпадающий список (Dropdown)
+local PlayerDropdown = RoflTab:CreateDropdown({
+   Name = "🎯 Выбери игрока",
+   Options = getPlayerList(),
+   CurrentOption = {"Нет игроков"},
+   MultipleOptions = false,
+   Callback = function(Options)
+      selectedPlayerName = Options[1] or ""
+   end,
+})
+
+-- Авто-обновление списка при входе/выходе игроков
+local function refreshDropdown()
+    PlayerDropdown:Set(getPlayerList())
+end
+
+Players.PlayerAdded:Connect(refreshDropdown)
+Players.PlayerRemoving:Connect(refreshDropdown)
+
+-- 2. Переключатель (Toggle)
+RoflTab:CreateToggle({
+   Name = "🤡 Включить Head Attach",
+   CurrentValue = false,
+   Callback = function(Value)
+      isRoflEnabled = Value
+      if not Value and roflTrack then
+          roflTrack:Stop()
+          roflTrack = nil
+      end
+   end,
+})
+
+-- Функция проигрывания эмоции
+local function playEmote(humanoid)
     if not humanoid then return nil end
     local animator = humanoid:FindFirstChildOfClass("Animator") or humanoid
     local track = animator:LoadAnimation(roflAnimation)
-    track.Priority = Enum.AnimationPriority.Action4 -- Максимальный приоритет
+    track.Priority = Enum.AnimationPriority.Action4
     track.Looped = true
     track:Play()
     return track
 end
 
+-- Основной цикл привязки
 RunService.Heartbeat:Connect(function()
-    if not isRoflEnabled or roflTargetName == "" then 
+    if not isRoflEnabled or selectedPlayerName == "" or selectedPlayerName == "Нет игроков" then 
         if roflTrack then 
             roflTrack:Stop()
             roflTrack = nil
@@ -821,44 +845,34 @@ RunService.Heartbeat:Connect(function()
         return 
     end
 
-    local char, hum, root = getCharacter()
-    if not char or not root or not hum then return end
+    local myChar = LocalPlayer.Character
+    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") or not myChar:FindFirstChild("Humanoid") then return end
+    
+    local myRoot = myChar.HumanoidRootPart
+    local myHum = myChar.Humanoid
 
-    local targetPlayer = nil
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer then
-            local nameMatch = plr.Name:lower():find(roflTargetName:lower())
-            local displayMatch = plr.DisplayName:lower():find(roflTargetName:lower())
-            if nameMatch or displayMatch then
-                targetPlayer = plr
-                break
-            end
-        end
-    end
+    local targetPlayer = Players:FindFirstChild(selectedPlayerName)
 
     if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Head") then
         local targetHead = targetPlayer.Character.Head
         
-        -- Запуск эмоции Dying Fish
+        -- Запуск эмоции
         if not roflTrack then
-            roflTrack = playRoflEmote(hum)
+            roflTrack = playEmote(myHum)
         end
 
-        -- Отключаем коллизию
-        for _, part in ipairs(char:GetChildren()) do
+        -- Отключение коллизий
+        for _, part in ipairs(myChar:GetChildren()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
             end
         end
 
-        -- Позиционирование:
-        -- Y = 1.0 (сидит прямо на голове/плечах)
-        -- CFrame.Angles(0, math.rad(90), 0) разворачивает корпус боком/поясом к лицу
-        root.CFrame = targetHead.CFrame * CFrame.new(0, 1.0, 0) * CFrame.Angles(0, math.rad(90), 0)
+        -- Поворот поясом/животом к лицу цели (math.rad(90)) и посадка на голову (Y = 1.0)
+        myRoot.CFrame = targetHead.CFrame * CFrame.new(0, 1.0, 0) * CFrame.Angles(0, math.rad(90), 0)
         
-        -- Сброс физики падения
-        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-        root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        myRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        myRoot.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
     else
         if roflTrack then
             roflTrack:Stop()
