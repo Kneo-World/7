@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V37.0 (FIXED WALLBANG & TOUCH SHOOT)
+-- MM2 ULTIMATE V37.0 (UPDATED WALLBANG ENGINE)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -88,8 +88,8 @@ end
 
 -- ========== ОКНО RAYFIELD ==========
 local Window = Rayfield:CreateWindow({
-   Name = "✨ MM2 V37.0 (WORKING WALLBANG FIX)",
-   LoadingTitle = "Загрузка прострела через стены...",
+   Name = "✨ MM2 V37.0 (ADVANCED WALLBANG)",
+   LoadingTitle = "Загрузка обновлённого прострела...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
@@ -121,7 +121,7 @@ CombatTab:CreateToggle({
 })
 
 CombatTab:CreateToggle({
-   Name = "🧱 Wallbang (Прострел сквозь стены)",
+   Name = "🧱 Wallbang (Мощный прострел сквозь стены)",
    CurrentValue = true,
    Callback = function(Value) 
       wallbangEnabled = Value 
@@ -189,7 +189,7 @@ fovCircle.Filled = false
 fovCircle.Transparency = 0.8
 fovCircle.NumSides = 36
 
--- ========== ЛОГИКА ДОВДКИ И АВТО-ВЫСТРЕЛА ==========
+-- ========== ЛОГИКА ДОВОДКИ И АВТО-ВЫСТРЕЛА ==========
 local lastShotTime = 0
 
 RunService.RenderStepped:Connect(function()
@@ -225,43 +225,57 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- ========== НАСТОЯЩИЙ ДВИЖОК WALLBANG (ПРОСТРЕЛ СТЕН) ==========
+-- ==================== НОВЫЙ УСИЛЕННЫЙ ДВИЖОК WALLBANG ====================
+local function applyWallbangToPart(part, targetHead)
+    if not part or not part:IsA("BasePart") then return end
+    
+    part.CanCollide = false
+    part.CFrame = CFrame.new(targetHead.Position) * CFrame.lookAt(part.Position, targetHead.Position).Rotation
+
+    if firetouchinterest then
+        task.spawn(function()
+            for i = 1, 3 do
+                firetouchinterest(part, targetHead, 0)
+                task.wait(0.005)
+                firetouchinterest(part, targetHead, 1)
+            end
+        end)
+    end
+end
+
+-- Перехват новых снарядов
 Workspace.ChildAdded:Connect(function(child)
-    if wallbangEnabled then
-        local murderer = getMurderer()
-        if murderer and murderer.Character and murderer.Character:FindFirstChild("Head") then
-            local targetHead = murderer.Character.Head
-            
-            -- Проверяем появление объекта выстрела (Bullet / KnifeServer / Ray)
-            if child.Name == "Bullet" or child.Name == "Ray" or child.Name == "KnifeServer" then
-                if child:IsA("BasePart") then
-                    child.CanCollide = false
-                    child.CFrame = targetHead.CFrame
-                    
-                    -- Создаём прямой физический TouchInterest для гарантированного попадания
-                    if firetouchinterest then
-                        firetouchinterest(child, targetHead, 0)
-                        task.wait(0.01)
-                        firetouchinterest(child, targetHead, 1)
-                    end
-                end
+    if not wallbangEnabled then return end
+    
+    local murderer = getMurderer()
+    if murderer and murderer.Character and murderer.Character:FindFirstChild("Head") then
+        local targetHead = murderer.Character.Head
+        
+        if child.Name == "Bullet" or child.Name == "Ray" or child.Name == "KnifeServer" or child.Name == "Handle" then
+            applyWallbangToPart(child, targetHead)
+        end
+        
+        for _, descendant in ipairs(child:GetDescendants()) do
+            if descendant:IsA("BasePart") and (descendant.Name == "Bullet" or descendant.Name == "Handle") then
+                applyWallbangToPart(descendant, targetHead)
             end
         end
     end
 end)
 
--- Дополнительный фоновый обход стен
-RunService.Stepped:Connect(function()
-    if wallbangEnabled then
-        local murderer = getMurderer()
-        if murderer and murderer.Character and murderer.Character:FindFirstChild("Head") then
-            local targetHead = murderer.Character.Head
-            for _, obj in ipairs(Workspace:GetChildren()) do
-                if obj.Name == "Bullet" or obj.Name == "Ray" then
-                    if obj:IsA("BasePart") then
-                        obj.CanCollide = false
-                        obj.CFrame = targetHead.CFrame
-                    end
+-- Сканирование и непрерывное ведение снарядов сквозь стены
+RunService.Heartbeat:Connect(function()
+    if not wallbangEnabled then return end
+    
+    local murderer = getMurderer()
+    if murderer and murderer.Character and murderer.Character:FindFirstChild("Head") then
+        local targetHead = murderer.Character.Head
+        
+        for _, obj in ipairs(Workspace:GetChildren()) do
+            if obj.Name == "Bullet" or obj.Name == "Ray" or obj.Name == "KnifeServer" then
+                if obj:IsA("BasePart") then
+                    obj.CanCollide = false
+                    obj.CFrame = targetHead.CFrame
                 end
             end
         end
@@ -799,4 +813,4 @@ RunService.Heartbeat:Connect(function()
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 end)
 
-Rayfield:Notify({Title = "MM2 Ultimate V37.0", Content = "Прострел стен (Wallbang) успешно настроен!", Duration = 4})
+Rayfield:Notify({Title = "MM2 Ultimate V37.0", Content = "Усиленный прострел стен активирован!", Duration = 4})
