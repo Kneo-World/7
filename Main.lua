@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V37.7 FULL SCRIPT (ALWAYS CAMERA AIMLOCK + WALLBANG)
+-- MM2 ULTIMATE V38.0 FULL SCRIPT (AIMLOCK + WALLBANG + CHAMS + AUTO-FARM)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+local SoundService = game:GetService("SoundService")
 local Camera = Workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
@@ -24,13 +25,19 @@ local ghostModeEnabled = false
 local noclipEnabled = false
 local maxAntiFlingEnabled = false
 
+-- Speed & Movement
+local speedEnabled = false
+local customSpeed = 16
+
 -- Visual Flags
+local chamsEnabled = false
 local espInfoEnabled = false
 local espBoxesEnabled = false
 local espTracersEnabled = false
 local customCrosshairEnabled = false
 local customFovEnabled = false
 local targetFovValue = 70
+local murderAlertEnabled = true
 
 -- AIMBOT & WALLBANG
 local aimbotEnabled = false
@@ -168,7 +175,7 @@ local function getPredictedPosition(targetPart)
     return targetPos + (targetVelocity * 0.18)
 end
 
--- ==================== SILENT AIM HOOK (ПАКЕТЫ СТРЕЛЬБЫ) ====================
+-- ==================== SILENT AIM HOOK ====================
 local isCustomFiring = false
 local rawNamecall
 
@@ -232,8 +239,8 @@ end))
 
 -- ==================== ОКНО RAYFIELD ====================
 local Window = Rayfield:CreateWindow({
-   Name = "✨ MM2 ULTIMATE V37.7",
-   LoadingTitle = "Загрузка скрипта...",
+   Name = "✨ MM2 ULTIMATE V38.0",
+   LoadingTitle = "Загрузка V38.0...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
@@ -341,12 +348,10 @@ RunService.RenderStepped:Connect(function()
         local targetScreenPos = Vector2.new(screenPos.X, screenPos.Y)
         local distanceToCenter = (targetScreenPos - screenCenter).Magnitude
 
-        -- ПОСТОЯННОЕ НАВЕДЕНИЕ КАМЕРЫ (Если включен Аимбот)
         if aimbotEnabled and (distanceToCenter <= aimbotFovRadius or wallbangEnabled) then
             Camera.CFrame = CFrame.new(Camera.CFrame.Position, predPos)
         end
 
-        -- АВТО-ВЫСТРЕЛ
         if autoTriggerEnabled and (tick() - lastShotTime > 0.35) and (distanceToCenter <= aimbotFovRadius or wallbangEnabled) then
             local char, hum, _ = getCharacter()
             if char then
@@ -362,12 +367,21 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ==================== Вкладка: ВИЗУАЛ & ESP ====================
+VisualsTab:CreateSection("✨ Highlights (Chams)")
+
+VisualsTab:CreateToggle({
+    Name = "✨ Chams (Highlight ESP)",
+    CurrentValue = false,
+    Callback = function(Value) chamsEnabled = Value end,
+})
+
 VisualsTab:CreateSection("🔥 Drawing ESP Engine")
 
 VisualsTab:CreateToggle({ Name = "📜 Имена + Роли + Дистанция", CurrentValue = false, Callback = function(Value) espInfoEnabled = Value end })
 VisualsTab:CreateToggle({ Name = "📦 2D / 3D Боксы (Boxes)", CurrentValue = false, Callback = function(Value) espBoxesEnabled = Value end })
 VisualsTab:CreateToggle({ Name = "📏 Snaplines / Tracers", CurrentValue = false, Callback = function(Value) espTracersEnabled = Value end })
 VisualsTab:CreateToggle({ Name = "🔫 Drop Gun ESP & Marker", CurrentValue = false, Callback = function(Value) gunEspEnabled = Value end })
+VisualsTab:CreateToggle({ Name = "🚨 Murderer Alert (Оповещение)", CurrentValue = true, Callback = function(Value) murderAlertEnabled = Value end })
 
 VisualsTab:CreateSection("🎨 Графика")
 
@@ -385,6 +399,43 @@ VisualsTab:CreateSlider({
 
 VisualsTab:CreateToggle({ Name = "🎯 Кастомный Прицел (Crosshair)", CurrentValue = false, Callback = function(Value) customCrosshairEnabled = Value end })
 
+-- Chams Implementation
+local function applyChams(plr)
+    if plr == LocalPlayer then return end
+    local function setupHighlight(char)
+        if not char then return end
+        local highlight = char:FindFirstChild("MM2_Chams") or Instance.new("Highlight")
+        highlight.Name = "MM2_Chams"
+        highlight.Adornee = char
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.FillTransparency = 0.5
+        highlight.OutlineTransparency = 0
+        highlight.Parent = char
+
+        local conn
+        conn = RunService.RenderStepped:Connect(function()
+            if not char or not char.Parent then
+                conn:Disconnect()
+                return
+            end
+            if chamsEnabled then
+                highlight.Enabled = true
+                local col = getRoleColor(plr)
+                highlight.FillColor = col
+                highlight.OutlineColor = col
+            else
+                highlight.Enabled = false
+            end
+        end)
+    end
+    if plr.Character then setupHighlight(plr.Character) end
+    plr.CharacterAdded:Connect(setupHighlight)
+end
+
+for _, plr in ipairs(Players:GetPlayers()) do applyChams(plr) end
+Players.PlayerAdded:Connect(applyChams)
+
+-- Drawing ESP Objects
 local ESP_Objects = {}
 
 local function createEspForPlayer(plr)
@@ -394,21 +445,9 @@ local function createEspForPlayer(plr)
         Box = Drawing.new("Square"),
         Text = Drawing.new("Text")
     }
-    objects.Tracer.Thickness = 1.5
-    objects.Tracer.Transparency = 1
-    objects.Tracer.Visible = false
-
-    objects.Box.Thickness = 1.5
-    objects.Box.Filled = false
-    objects.Box.Transparency = 1
-    objects.Box.Visible = false
-
-    objects.Text.Size = 14
-    objects.Text.Center = true
-    objects.Text.Outline = true
-    objects.Text.Font = 2
-    objects.Text.Visible = false
-
+    objects.Tracer.Thickness = 1.5; objects.Tracer.Transparency = 1; objects.Tracer.Visible = false
+    objects.Box.Thickness = 1.5; objects.Box.Filled = false; objects.Box.Transparency = 1; objects.Box.Visible = false
+    objects.Text.Size = 14; objects.Text.Center = true; objects.Text.Outline = true; objects.Text.Font = 2; objects.Text.Visible = false
     ESP_Objects[plr] = objects
 end
 
@@ -446,7 +485,6 @@ RunService.RenderStepped:Connect(function()
         if plr and plr.Parent and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChild("Head") then
             local hrp = plr.Character.HumanoidRootPart
             local head = plr.Character.Head
-            
             local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
             local headPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.8, 0))
             local legPos = Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
@@ -460,8 +498,7 @@ RunService.RenderStepped:Connect(function()
                 if espTracersEnabled then
                     objs.Tracer.From = Vector2.new(viewportSize.X / 2, viewportSize.Y)
                     objs.Tracer.To = Vector2.new(hrpPos.X, hrpPos.Y)
-                    objs.Tracer.Color = color
-                    objs.Tracer.Visible = true
+                    objs.Tracer.Color = color; objs.Tracer.Visible = true
                 else objs.Tracer.Visible = false end
 
                 if espBoxesEnabled then
@@ -469,21 +506,40 @@ RunService.RenderStepped:Connect(function()
                     local boxWidth = boxHeight * 0.65
                     objs.Box.Size = Vector2.new(boxWidth, boxHeight)
                     objs.Box.Position = Vector2.new(hrpPos.X - (boxWidth / 2), headPos.Y)
-                    objs.Box.Color = color
-                    objs.Box.Visible = true
+                    objs.Box.Color = color; objs.Box.Visible = true
                 else objs.Box.Visible = false end
 
                 if espInfoEnabled then
                     objs.Text.Position = Vector2.new(hrpPos.X, headPos.Y - 18)
                     objs.Text.Text = string.format("%s [%s] | %d m", plr.Name, roleText, dist)
-                    objs.Text.Color = color
-                    objs.Text.Visible = true
+                    objs.Text.Color = color; objs.Text.Visible = true
                 else objs.Text.Visible = false end
             else
                 objs.Tracer.Visible = false; objs.Box.Visible = false; objs.Text.Visible = false
             end
         else
             objs.Tracer.Visible = false; objs.Box.Visible = false; objs.Text.Visible = false
+        end
+    end
+end)
+
+-- Murderer Alert Loop
+local alertedMurderers = {}
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if murderAlertEnabled then
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer and plr.Character then
+                    local hasKnife = plr.Character:FindFirstChild("Knife")
+                    if hasKnife and not alertedMurderers[plr.Name] then
+                        alertedMurderers[plr.Name] = true
+                        Rayfield:Notify({Title = "⚠️ ОПАСНОСТЬ!", Content = plr.Name .. " ДОСТАЛ НОЖ!", Duration = 4})
+                    elseif not hasKnife and alertedMurderers[plr.Name] then
+                        alertedMurderers[plr.Name] = nil
+                    end
+                end
+            end
         end
     end
 end)
@@ -705,10 +761,47 @@ FarmingTab:CreateButton({
 })
 
 FarmingTab:CreateToggle({
-   Name = "💰 Auto Farm Coins",
+   Name = "💰 Auto Farm Coins (Телепорт)",
    CurrentValue = false,
    Callback = function(Value) autoFarmEnabled = Value end,
 })
+
+-- Полноценная логика авто-фарма монет
+task.spawn(function()
+    while true do
+        task.wait(0.2)
+        if autoFarmEnabled then
+            local char, _, root = getCharacter()
+            local coinContainer = Workspace:FindFirstChild("Normal") or Workspace:FindFirstChild("CoinContainer", true)
+            
+            if coinContainer and root then
+                local coins = {}
+                for _, child in ipairs(coinContainer:GetDescendants()) do
+                    if child.Name == "Coin" or child.Name == "CoinContainer" or child:IsA("TouchTransmitter") then
+                        local coinPart = child:IsA("BasePart") and child or child.Parent
+                        if coinPart and coinPart:IsA("BasePart") and coinPart.Transparency < 1 then
+                            table.insert(coins, coinPart)
+                        end
+                    end
+                end
+
+                if #coins > 0 then
+                    for _, coinPart in ipairs(coins) do
+                        if not autoFarmEnabled then break end
+                        if coinPart and coinPart.Parent and coinPart.Transparency < 1 then
+                            root.CFrame = coinPart.CFrame
+                            task.wait(0.35)
+                        end
+                    end
+                elseif safePointCFrame then
+                    root.CFrame = safePointCFrame
+                end
+            elseif safePointCFrame and root then
+                root.CFrame = safePointCFrame
+            end
+        end
+    end
+end)
 
 -- ==================== Вкладка: РАЗНОЕ ====================
 MiscTab:CreateSection("Телепортация")
@@ -727,7 +820,22 @@ MiscTab:CreateButton({
    end,
 })
 
-MiscTab:CreateSection("Физика & Персонаж")
+MiscTab:CreateSection("Физика & Скорость")
+
+MiscTab:CreateToggle({
+    Name = "⚡ Speed Hack (CFrame)",
+    CurrentValue = false,
+    Callback = function(Value) speedEnabled = Value end,
+})
+
+MiscTab:CreateSlider({
+    Name = "🏃 Скорость Бега",
+    Range = {16, 120},
+    Increment = 1,
+    Suffix = "Speed",
+    CurrentValue = 16,
+    Callback = function(Value) customSpeed = Value end,
+})
 
 MiscTab:CreateToggle({ Name = "🐰 Bunny Hop", CurrentValue = false, Callback = function(Value) bunnyHopEnabled = Value end })
 MiscTab:CreateToggle({ Name = "🧲 Auto Pick Gun", CurrentValue = false, Callback = function(Value) autoPickGunEnabled = Value end })
@@ -750,6 +858,15 @@ MiscTab:CreateToggle({
 })
 
 -- ==================== СЕРВИСНЫЕ ЦИКЛЫ ====================
+RunService.Heartbeat:Connect(function()
+    if speedEnabled then
+        local char, hum, root = getCharacter()
+        if hum and root and hum.MoveDirection.Magnitude > 0 then
+            root.CFrame = root.CFrame + (hum.MoveDirection * (customSpeed / 50))
+        end
+    end
+end)
+
 RunService.Stepped:Connect(function()
     if autoFarmEnabled or noclipEnabled then
         local char = getCharacter()
@@ -814,4 +931,4 @@ RunService.Heartbeat:Connect(function()
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 end)
 
-Rayfield:Notify({Title = "MM2 Ultimate V37.7", Content = "Скрипт полностью запущен!", Duration = 4})
+Rayfield:Notify({Title = "MM2 Ultimate V38.0", Content = "Скрипт V38.0 успешно загружен!", Duration = 4})
