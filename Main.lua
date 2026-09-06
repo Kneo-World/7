@@ -913,22 +913,60 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Anti-Fling Protect Loop
+-- ==================== MAX ANTI-FLING V2 (GUARANTEED) ====================
+local AntiFlingVelocity = Instance.new("BodyVelocity")
+AntiFlingVelocity.Name = "AntiFlingShield"
+AntiFlingVelocity.MaxForce = Vector3.new(0, 0, 0)
+AntiFlingVelocity.Velocity = Vector3.new(0, 0, 0)
+
+RunService.Stepped:Connect(function()
+    if not maxAntiFlingEnabled or isFlingingSingle or isFlingingAll or isSpinAuraEnabled then 
+        AntiFlingVelocity.MaxForce = Vector3.new(0, 0, 0)
+        return 
+    end
+
+    local char, hum, root = getCharacter()
+    if not char or not root or not hum then return end
+
+    -- 1. Полное отключение столкновений с другими игроками
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            for _, part in ipairs(plr.Character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end
+
+    -- 2. Блокировка регдолла и падений
+    hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+    hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+end)
+
 RunService.Heartbeat:Connect(function()
     if not maxAntiFlingEnabled or isFlingingSingle or isFlingingAll or autoFarmEnabled or isSpinAuraEnabled then return end
     local char, hum, root = getCharacter()
     if not char or not root or not hum then return end
 
-    local horizVel = Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z)
-    if horizVel.Magnitude > 120 then 
-        root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0) 
-    end
-    if root.AssemblyAngularVelocity.Magnitude > 120 then 
-        root.AssemblyAngularVelocity = Vector3.new(0, 0, 0) 
+    -- Прикрепляем BodyVelocity, если его нет
+    if AntiFlingVelocity.Parent ~= root then
+        AntiFlingVelocity.Parent = root
     end
 
-    hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
-    hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+    -- 3. Детект аномального ускорения и мгновенный сброс
+    local currentVel = root.AssemblyLinearVelocity
+    local currentRot = root.AssemblyAngularVelocity
+
+    if currentVel.Magnitude > 60 or currentRot.Magnitude > 60 then
+        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        
+        -- Включаем жесткую стабилизацию на 1 кадр
+        AntiFlingVelocity.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+    else
+        AntiFlingVelocity.MaxForce = Vector3.new(0, 0, 0)
+    end
 end)
 
 Rayfield:Notify({Title = "MM2 Ultimate V38.0", Content = "Скрипт V38.0 успешно загружен!", Duration = 4})
