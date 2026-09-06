@@ -756,29 +756,18 @@ FlingTab:CreateToggle({
 -- ==================== Вкладка: ROFL ====================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local InsertService = game:GetService("InsertService")
 
 local LocalPlayer = Players.LocalPlayer
 
--- Настройка эмоции Dying Fish
-local emoteAssetId = 120673504606569
+-- Анимация сидения/эмоции (задаем напрямую рабочий ID)
 local roflAnimation = Instance.new("Animation")
-
-pcall(function()
-    local asset = InsertService:LoadAsset(emoteAssetId)
-    local anim = asset:FindFirstChildWhichIsA("Animation", true)
-    if anim then
-        roflAnimation.AnimationId = anim.AnimationId
-    else
-        roflAnimation.AnimationId = "rbxassetid://" .. tostring(emoteAssetId)
-    end
-end)
+roflAnimation.AnimationId = "rbxassetid://250622329" -- Стандартный рабочий ID анимации
 
 local isRoflEnabled = false
 local selectedPlayerName = ""
 local roflTrack = nil
 
--- Функция получения списка имен всех игроков (кроме себя)
+-- Функция получения списка игроков
 local function getPlayerList()
     local list = {}
     for _, plr in ipairs(Players:GetPlayers()) do
@@ -799,13 +788,19 @@ local PlayerDropdown = RoflTab:CreateDropdown({
    CurrentOption = {"Нет игроков"},
    MultipleOptions = false,
    Callback = function(Options)
-      selectedPlayerName = Options[1] or ""
+      if type(Options) == "table" then
+          selectedPlayerName = Options[1] or ""
+      else
+          selectedPlayerName = Options or ""
+      end
    end,
 })
 
--- Авто-обновление списка при входе/выходе игроков
+-- Авто-обновление списка игроков
 local function refreshDropdown()
-    PlayerDropdown:Set(getPlayerList())
+    if PlayerDropdown and PlayerDropdown.Set then
+        PlayerDropdown:Set(getPlayerList())
+    end
 end
 
 Players.PlayerAdded:Connect(refreshDropdown)
@@ -824,18 +819,25 @@ RoflTab:CreateToggle({
    end,
 })
 
--- Функция проигрывания эмоции
+-- Функция проигрывания анимации с защитой от ошибок
 local function playEmote(humanoid)
-    if not humanoid then return nil end
+    if not humanoid or not roflAnimation.AnimationId or roflAnimation.AnimationId == "" then return nil end
     local animator = humanoid:FindFirstChildOfClass("Animator") or humanoid
-    local track = animator:LoadAnimation(roflAnimation)
-    track.Priority = Enum.AnimationPriority.Action4
-    track.Looped = true
-    track:Play()
-    return track
+    
+    local success, track = pcall(function()
+        return animator:LoadAnimation(roflAnimation)
+    end)
+    
+    if success and track then
+        track.Priority = Enum.AnimationPriority.Action4
+        track.Looped = true
+        track:Play()
+        return track
+    end
+    return nil
 end
 
--- Основной цикл привязки
+-- Основной цикл телепортации и привязки
 RunService.Heartbeat:Connect(function()
     if not isRoflEnabled or selectedPlayerName == "" or selectedPlayerName == "Нет игроков" then 
         if roflTrack then 
@@ -846,31 +848,33 @@ RunService.Heartbeat:Connect(function()
     end
 
     local myChar = LocalPlayer.Character
-    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") or not myChar:FindFirstChild("Humanoid") then return end
-    
-    local myRoot = myChar.HumanoidRootPart
-    local myHum = myChar.Humanoid
+    if not myChar then return end
+
+    local myRoot = myChar:FindFirstChild("HumanoidRootPart")
+    local myHum = myChar:FindFirstChildOfClass("Humanoid")
+    if not myRoot or not myHum then return end
 
     local targetPlayer = Players:FindFirstChild(selectedPlayerName)
 
     if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Head") then
         local targetHead = targetPlayer.Character.Head
         
-        -- Запуск эмоции
+        -- Безопасный запуск анимации
         if not roflTrack then
             roflTrack = playEmote(myHum)
         end
 
-        -- Отключение коллизий
+        -- Отключение коллизий деталей
         for _, part in ipairs(myChar:GetChildren()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
             end
         end
 
-        -- Поворот поясом/животом к лицу цели (math.rad(90)) и посадка на голову (Y = 1.0)
+        -- Разворот поясом/животом к лицу цели и посадка на голову
         myRoot.CFrame = targetHead.CFrame * CFrame.new(0, 1.0, 0) * CFrame.Angles(0, math.rad(90), 0)
         
+        -- Сброс скорости физики
         myRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
         myRoot.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
     else
