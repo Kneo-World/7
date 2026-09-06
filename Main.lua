@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V37.6 FULL SCRIPT (HOOK NOCLIP + GETPLAYERDATA)
+-- MM2 ULTIMATE V37.6 FULL SCRIPT (CAMERA AIMLOCK + WALLSHOT)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -93,19 +93,7 @@ local function getRoleName(plr)
     return "Innocent"
 end
 
-local function getMurderer()
-    local roles = getRoles()
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            if roles[plr.Name] == "Murderer" or plr.Character:FindFirstChild("Knife") or (plr:FindFirstChild("Backpack") and plr.Backpack:FindFirstChild("Knife")) then
-                return plr
-            end
-        end
-    end
-    return nil
-end
-
--- ==================== ВСТАВЛЕННЫЙ БЛОК: SILENT AIM & WALLSHOT LOGIC (ИЗ ВТОРОГО СКРИПТА) ====================
+-- ==================== ПОИСК МАРДЕРА И ЦЕЛЕЙ ====================
 local function getMurdererPart()
     local rigs = Workspace:FindFirstChild("Rigs")
     if rigs and rigs:FindFirstChild("Murderer") then
@@ -122,6 +110,16 @@ local function getMurdererPart()
             end
         end
     end
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            local hasKnife = plr.Character:FindFirstChild("Knife") or (plr:FindFirstChild("Backpack") and plr.Backpack:FindFirstChild("Knife"))
+            if hasKnife then
+                return plr.Character:FindFirstChild("HumanoidRootPart") or plr.Character:FindFirstChild("UpperTorso")
+            end
+        end
+    end
+
     return nil
 end
 
@@ -172,7 +170,7 @@ local function getPredictedPosition(targetPart)
     return targetPos + (targetVelocity * 0.2)
 end
 
--- ==================== ИСПРАВЛЕННЫЙ БЛОК: SILENT AIM & WALLSHOT ====================
+-- ==================== SILENT AIM & CAMERA HOOK ====================
 local isCustomFiring = false
 local rawNamecall
 
@@ -189,20 +187,21 @@ rawNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
             if predictedPos then
                 isCustomFiring = true
                 
+                -- Автоматический поворот камеры на Мардера
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, predictedPos)
+
                 local myChar, _, myRoot = getCharacter()
                 local originPos = myRoot and myRoot.Position or (args[1] and args[1].Position) or Vector3.zero
                 
-                -- Если включен wallbang, смещаем точку вылета пули прямо к цели (в пределах 1 studs), чтобы пробить стены
                 if wallbangEnabled then
                     local dir = (predictedPos - originPos).Unit
                     if dir.Magnitude == 0 then dir = Vector3.new(0, 0, -1) end
-                    originPos = predictedPos - (dir * 1)
+                    originPos = predictedPos - (dir * 1.5)
                 end
 
                 local originCFrame = CFrame.new(originPos, predictedPos)
                 local targetCFrame = CFrame.new(predictedPos)
 
-                -- Отправляем исправленный выстрел
                 self:FireServer(originCFrame, targetCFrame)
                 isCustomFiring = false
                 return nil
@@ -216,13 +215,15 @@ rawNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
             if predictedPos then
                 isCustomFiring = true
 
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, predictedPos)
+
                 local myChar, _, myRoot = getCharacter()
                 local originPos = myRoot and myRoot.Position or Vector3.zero
 
                 if wallbangEnabled then
                     local dir = (predictedPos - originPos).Unit
                     if dir.Magnitude == 0 then dir = Vector3.new(0, 0, -1) end
-                    originPos = predictedPos - (dir * 1)
+                    originPos = predictedPos - (dir * 1.5)
                 end
 
                 local originCFrame = CFrame.new(originPos, predictedPos)
@@ -817,4 +818,4 @@ RunService.Heartbeat:Connect(function()
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 end)
 
-Rayfield:Notify({Title = "MM2 Ultimate V37.6", Content = "Скрипт полностью готов и запущен!", Duration = 4})
+Rayfield:Notify({Title = "MM2 Ultimate V37.6", Content = "Скрипт успешно запущен!", Duration = 4})
