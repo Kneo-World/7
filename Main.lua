@@ -1,17 +1,16 @@
 -- ============================================================
--- MM2 ULTIMATE V38.0 (FULL EVENT-BASED WALLBANG ENGINE)
+-- MM2 ULTIMATE V37.2 (DIRECT EVENT WALLBANG ENGINE)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local player = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
+local player = Players.LocalPlayer
 
 -- ========== Переменные состояний ==========
 local isFlingingSingle = false
@@ -90,57 +89,56 @@ local function getMurderer()
 end
 
 local function getMurdererTargetPart()
-    local murderer = getMurderer()
-    if murderer and murderer.Character then
-        return murderer.Character:FindFirstChild("Head") or murderer.Character:FindFirstChild("HumanoidRootPart")
+    local murder = getMurderer()
+    if murder and murder.Character then
+        return murder.Character:FindFirstChild("Head") or murder.Character:FindFirstChild("HumanoidRootPart")
     end
     return nil
 end
 
--- ==================== ИВЕНТОВЫЙ ХУК WALLBANG ====================
-local shootEvent = ReplicatedStorage:FindFirstChild("ShootGun", true) 
-   or ReplicatedStorage:FindFirstChild("Shoot", true)
-   or ReplicatedStorage:FindFirstChild("GunShoot", true)
+-- ==================== ИВЕНТ СИСТЕМА WALLBANG (Ивент: "Shoot") ====================
+local shootEvent = ReplicatedStorage:FindFirstChild("Shoot", true)
 
 if shootEvent and shootEvent:IsA("RemoteEvent") then
-    local originalFireServer
-    originalFireServer = hookfunction(shootEvent.FireServer, function(self, ...)
+    local oldFireServer = shootEvent.FireServer
+    
+    shootEvent.FireServer = function(self, ...)
         local args = {...}
-        local targetPart = getMurdererTargetPart()
         
-        if wallbangEnabled and targetPart then
-            for i, arg in ipairs(args) do
-                if typeof(arg) == "Vector3" then
-                    args[i] = targetPart.Position
-                elseif typeof(arg) == "CFrame" then
-                    args[i] = targetPart.CFrame
+        if wallbangEnabled then
+            local targetPart = getMurdererTargetPart()
+            if targetPart then
+                -- Подменяем координаты выстрела на позицию головы Мардера
+                for i = 1, #args do
+                    if typeof(args[i]) == "Vector3" then
+                        args[i] = targetPart.Position
+                    elseif typeof(args[i]) == "CFrame" then
+                        args[i] = targetPart.CFrame
+                    end
                 end
             end
         end
-        return originalFireServer(self, unpack(args))
-    end)
+        
+        return oldFireServer(self, unpack(args))
+    end
 end
 
--- Дополнительная телепортация спавнящихся физических пуль/снарядов
+-- Дополнительная подстраховка: Телепорт спавнящихся пуль/лучей прямо в Мардера
 Workspace.ChildAdded:Connect(function(child)
     if not wallbangEnabled then return end
     
     local targetPart = getMurdererTargetPart()
     if not targetPart then return end
 
-    if child.Name == "Bullet" or child.Name == "Ray" or child.Name == "KnifeServer" or child.Name == "Handle" then
+    if child.Name == "Bullet" or child.Name == "Ray" or child.Name == "KnifeServer" then
         if child:IsA("BasePart") then
             child.CanCollide = false
             child.CFrame = targetPart.CFrame
             
             if firetouchinterest then
-                task.spawn(function()
-                    for _ = 1, 3 do
-                        firetouchinterest(child, targetPart, 0)
-                        task.wait(0.005)
-                        firetouchinterest(child, targetPart, 1)
-                    end
-                end)
+                firetouchinterest(child, targetPart, 0)
+                task.wait()
+                firetouchinterest(child, targetPart, 1)
             end
         end
     end
@@ -148,8 +146,8 @@ end)
 
 -- ========== ОКНО RAYFIELD ==========
 local Window = Rayfield:CreateWindow({
-   Name = "✨ MM2 V38.0 (EVENT WALLBANG)",
-   LoadingTitle = "Загрузка ивентового прострела...",
+   Name = "✨ MM2 V37.2 (SHOOT EVENT WALLBANG)",
+   LoadingTitle = "Загрузка скрипта и ивента Shoot...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
@@ -165,21 +163,27 @@ local MiscTab = Window:CreateTab("⚙️ Разное & Настройки", 448
 CombatTab:CreateSection("📱 Аимбот под Тапы Экрана")
 
 CombatTab:CreateToggle({
+   Name = "🧱 Wallbang через Ивент Shoot",
+   CurrentValue = true,
+   Callback = function(Value) 
+      wallbangEnabled = Value 
+   end,
+})
+
+CombatTab:CreateToggle({
    Name = "🎯 Доводка Камеры на Мардера (Touch Lock)",
    CurrentValue = false,
-   Callback = function(Value) aimbotEnabled = Value end,
+   Callback = function(Value) 
+      aimbotEnabled = Value 
+   end,
 })
 
 CombatTab:CreateToggle({
    Name = "⚡ Auto-Trigger Shoot (Авто-Выстрел)",
    CurrentValue = false,
-   Callback = function(Value) autoTriggerEnabled = Value end,
-})
-
-CombatTab:CreateToggle({
-   Name = "🧱 Wallbang через RemoteEvent (ТП пули)",
-   CurrentValue = true,
-   Callback = function(Value) wallbangEnabled = Value end,
+   Callback = function(Value) 
+      autoTriggerEnabled = Value 
+   end,
 })
 
 CombatTab:CreateSlider({
@@ -188,7 +192,9 @@ CombatTab:CreateSlider({
    Increment = 10,
    Suffix = "px",
    CurrentValue = 250,
-   Callback = function(Value) aimbotFovRadius = Value end,
+   Callback = function(Value)
+      aimbotFovRadius = Value
+   end,
 })
 
 CombatTab:CreateToggle({
@@ -241,6 +247,7 @@ fovCircle.Filled = false
 fovCircle.Transparency = 0.8
 fovCircle.NumSides = 36
 
+-- ========== ЛОГИКА ДОВОДКИ И АВТО-ВЫСТРЕЛА ==========
 local lastShotTime = 0
 
 RunService.RenderStepped:Connect(function()
@@ -323,7 +330,7 @@ VisualsTab:CreateToggle({
    Callback = function(Value) customCrosshairEnabled = Value end,
 })
 
--- DRAWING ESP ENGINE
+-- ПРЯМОЙ DRAWING ESP ДВИЖОК
 local ESP_Objects = {}
 
 local function createEspForPlayer(plr)
@@ -366,6 +373,7 @@ for _, plr in ipairs(Players:GetPlayers()) do createEspForPlayer(plr) end
 Players.PlayerAdded:Connect(createEspForPlayer)
 Players.PlayerRemoving:Connect(removeEspForPlayer)
 
+-- Прицел
 local crossLineH = Drawing.new("Line")
 local crossLineV = Drawing.new("Line")
 crossLineH.Thickness = 2
@@ -505,6 +513,7 @@ task.spawn(function()
     end
 end)
 
+-- ДВИЖОК РВАНКИ
 local function emergencyStop()
     isFlingingSingle = false 
     isFlingingAll = false
@@ -522,7 +531,7 @@ local function emergencyStop()
 end
 
 local function startFlingLoop(getTargetFunc, isRunningCheck, durationLimit)
-    local _, _, root = getCharacter()
+    local char, hum, root = getCharacter()
     if not root then return end
     originalCFrame = root.CFrame
     local startTime = tick()
@@ -627,7 +636,7 @@ FlingTab:CreateToggle({
 
 RunService.Heartbeat:Connect(function()
     if not isSpinAuraEnabled or isFlingingSingle or isFlingingAll then return end
-    local _, hum, root = getCharacter()
+    local char, hum, root = getCharacter()
     if not root or not hum then return end
 
     root.AssemblyAngularVelocity = Vector3.new(0, 95000, 0)
@@ -755,6 +764,7 @@ RunService.Stepped:Connect(function()
     end
 end)
 
+-- Drop Gun ESP Marker
 local gunEspText = Drawing.new("Text")
 gunEspText.Size = 16
 gunEspText.Center = true
@@ -786,10 +796,11 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
+-- Anti-Fling Protect Loop
 RunService.Heartbeat:Connect(function()
     if not maxAntiFlingEnabled or isFlingingSingle or isFlingingAll or autoFarmEnabled or isSpinAuraEnabled then return end
-    local _, hum, root = getCharacter()
-    if not root or not hum then return end
+    local char, hum, root = getCharacter()
+    if not char or not root or not hum then return end
 
     local horizVel = Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z)
     if horizVel.Magnitude > 120 then 
@@ -803,4 +814,4 @@ RunService.Heartbeat:Connect(function()
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 end)
 
-Rayfield:Notify({Title = "MM2 V38.0 Загружен", Content = "Ивентовый Wallbang готов к работе!", Duration = 4})
+Rayfield:Notify({Title = "MM2 Ultimate V37.2", Content = "Хук события Shoot настроен!", Duration = 4})
