@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V37.3 (COBALT-PROOF SHOOT HOOK)
+-- MM2 ULTIMATE V37.4 (INSTANT MAP NOCLIP ON SHOOT EVENT)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -96,7 +96,7 @@ local function getMurdererTargetPart()
     return nil
 end
 
--- ==================== СИСТЕМА WALLBANG ПО КАРТЕ COBALT ====================
+-- ==================== МГНОВЕННЫЙ NOCLIP КАРТЫ НА ИВЕНТ SHOOT ====================
 local shootEvent = ReplicatedStorage:FindFirstChild("Shoot", true)
 
 if shootEvent and shootEvent:IsA("RemoteEvent") then
@@ -106,57 +106,56 @@ if shootEvent and shootEvent:IsA("RemoteEvent") then
         local args = {...}
         
         if wallbangEnabled then
+            -- 1. Если включен аимбот, направляем CFrame выстрела в Мардера
             local targetPart = getMurdererTargetPart()
-            
             if targetPart then
                 local targetCFrame = targetPart.CFrame
-                
-                -- Согласно Cobalt Spy, Shoot запрашивает 2 CFrame:
-                -- Arg 1: Начало луча (выстрел)
-                -- Arg 2: Конец луча (цель)
                 if #args >= 2 then
-                    args[1] = targetCFrame * CFrame.new(0, 0, -0.5) -- Точка перед лицом Мардера
-                    args[2] = targetCFrame                        -- Сама голова/туловище Мардера
-                else
-                    for i = 1, #args do
-                        if typeof(args[i]) == "CFrame" then
-                            args[i] = targetCFrame
-                        elseif typeof(args[i]) == "Vector3" then
-                            args[i] = targetPart.Position
+                    args[1] = targetCFrame * CFrame.new(0, 0, -0.5)
+                    args[2] = targetCFrame
+                end
+            end
+
+            -- 2. Отключаем коллизию у карты на 1 кадр для пролёта пули
+            task.spawn(function()
+                local modifiedParts = {}
+                
+                for _, part in ipairs(Workspace:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then
+                        -- Игнорируем персонажей, чтобы не сломать попадание пули
+                        local isCharacterPart = false
+                        for _, p in ipairs(Players:GetPlayers()) do
+                            if p.Character and part:IsDescendantOf(p.Character) then
+                                isCharacterPart = true
+                                break
+                            end
+                        end
+                        
+                        if not isCharacterPart then
+                            part.CanCollide = false
+                            table.insert(modifiedParts, part)
                         end
                     end
                 end
-            end
+                
+                -- Ждем микросекунду (1 кадр) и возвращаем коллизию обратно
+                task.wait()
+                
+                for _, part in ipairs(modifiedParts) do
+                    if part and part.Parent then
+                        part.CanCollide = true
+                    end
+                end
+            end)
         end
         
         return oldFireServer(self, unpack(args))
     end
 end
 
--- Дополнительный физический телепорт спавнящейся пули (Резерв)
-Workspace.ChildAdded:Connect(function(child)
-    if not wallbangEnabled then return end
-    
-    local targetPart = getMurdererTargetPart()
-    if not targetPart then return end
-
-    if child.Name == "Bullet" or child.Name == "Ray" or child.Name == "KnifeServer" then
-        if child:IsA("BasePart") then
-            child.CanCollide = false
-            child.CFrame = targetPart.CFrame
-            
-            if firetouchinterest then
-                firetouchinterest(child, targetPart, 0)
-                task.wait()
-                firetouchinterest(child, targetPart, 1)
-            end
-        end
-    end
-end)
-
 -- ========== ОКНО RAYFIELD ==========
 local Window = Rayfield:CreateWindow({
-   Name = "✨ MM2 V37.3 (COBALT WALLBANG FIX)",
+   Name = "✨ MM2 V37.4 (INSTANT NOCLIP SHOOT)",
    LoadingTitle = "Загрузка скрипта и хука Shoot...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
@@ -173,7 +172,7 @@ local MiscTab = Window:CreateTab("⚙️ Разное & Настройки", 448
 CombatTab:CreateSection("📱 Аимбот под Тапы Экрана")
 
 CombatTab:CreateToggle({
-   Name = "🧱 Wallbang (Игнорирование стен)",
+   Name = "🧱 Wallbang (Отключение стен при выстреле)",
    CurrentValue = true,
    Callback = function(Value) 
       wallbangEnabled = Value 
@@ -824,4 +823,4 @@ RunService.Heartbeat:Connect(function()
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 end)
 
-Rayfield:Notify({Title = "MM2 Ultimate V37.3", Content = "Хук Shoot обновлён под Cobalt!", Duration = 4})
+Rayfield:Notify({Title = "MM2 Ultimate V37.4", Content = "Map Noclip на ивент Shoot активен!", Duration = 4})
