@@ -785,6 +785,9 @@ local function setRoflAnimation(state)
     end
 end
 
+-- Стандартная анимация сидения Roblox (работает во всех играх)
+local roflAnimationId = 250622329 
+
 RoflTab:CreateToggle({
    Name = "🤡 Включить Head Attach (Привязаться к Голове)",
    CurrentValue = false,
@@ -824,13 +827,16 @@ RunService.Heartbeat:Connect(function()
             setRoflAnimation(true)
         end
 
+        -- Отключаем коллизию деталей
         for _, part in ipairs(char:GetChildren()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
             end
         end
 
-        root.CFrame = targetHead.CFrame * CFrame.new(0, 0.3, 0) * CFrame.Angles(math.rad(180), 0, 0)
+        -- Смещение: (X = 0, Y = 1.8 сверху над головой, Z = 0)
+        -- Поворот CFrame.Angles(0, 0, 0) оставляет персонажа стоящим/сидящим ровно
+        root.CFrame = targetHead.CFrame * CFrame.new(0, 1.8, 0)
         root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
         root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
     else
