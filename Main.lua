@@ -785,28 +785,44 @@ local function setRoflAnimation(state)
     end
 end
 
--- Стандартная анимация сидения Roblox (работает во всех играх)
-local roflAnimationId = 250622329 
+local InsertService = game:GetService("InsertService")
 
-RoflTab:CreateToggle({
-   Name = "🤡 Включить Head Attach (Привязаться к Голове)",
-   CurrentValue = false,
-   Callback = function(Value)
-      isRoflEnabled = Value
-      if not Value then
-          setRoflAnimation(false)
-      end
-   end,
-})
+-- Загружаем правильный ID эмоции "Dying Fish"
+local emoteAssetId = 120673504606569
+local roflAnimation = Instance.new("Animation")
+
+-- Пробуем вытянуть AnimationTrack напрямую
+pcall(function()
+    local asset = InsertService:LoadAsset(emoteAssetId)
+    local anim = asset:FindFirstChildWhichIsA("Animation", true)
+    if anim then
+        roflAnimation.AnimationId = anim.AnimationId
+    else
+        roflAnimation.AnimationId = "rbxassetid://" .. tostring(emoteAssetId)
+    end
+end)
+
+local function playRoflEmote(humanoid)
+    if not humanoid then return nil end
+    local animator = humanoid:FindFirstChildOfClass("Animator") or humanoid
+    local track = animator:LoadAnimation(roflAnimation)
+    track.Priority = Enum.AnimationPriority.Action4 -- Максимальный приоритет
+    track.Looped = true
+    track:Play()
+    return track
+end
 
 RunService.Heartbeat:Connect(function()
     if not isRoflEnabled or roflTargetName == "" then 
-        if roflTrack then setRoflAnimation(false) end
+        if roflTrack then 
+            roflTrack:Stop()
+            roflTrack = nil
+        end
         return 
     end
 
     local char, hum, root = getCharacter()
-    if not char or not root then return end
+    if not char or not root or not hum then return end
 
     local targetPlayer = nil
     for _, plr in ipairs(Players:GetPlayers()) do
@@ -823,24 +839,31 @@ RunService.Heartbeat:Connect(function()
     if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Head") then
         local targetHead = targetPlayer.Character.Head
         
+        -- Запуск эмоции Dying Fish
         if not roflTrack then
-            setRoflAnimation(true)
+            roflTrack = playRoflEmote(hum)
         end
 
-        -- Отключаем коллизию деталей
+        -- Отключаем коллизию
         for _, part in ipairs(char:GetChildren()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
             end
         end
 
-        -- Смещение: (X = 0, Y = 1.8 сверху над головой, Z = 0)
-        -- Поворот CFrame.Angles(0, 0, 0) оставляет персонажа стоящим/сидящим ровно
-        root.CFrame = targetHead.CFrame * CFrame.new(0, 1.8, 0)
+        -- Позиционирование:
+        -- Y = 1.0 (сидит прямо на голове/плечах)
+        -- CFrame.Angles(0, math.rad(90), 0) разворачивает корпус боком/поясом к лицу
+        root.CFrame = targetHead.CFrame * CFrame.new(0, 1.0, 0) * CFrame.Angles(0, math.rad(90), 0)
+        
+        -- Сброс физики падения
         root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
         root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
     else
-        setRoflAnimation(false)
+        if roflTrack then
+            roflTrack:Stop()
+            roflTrack = nil
+        end
     end
 end)
 
