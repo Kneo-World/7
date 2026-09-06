@@ -105,80 +105,136 @@ local function getMurderer()
     return nil
 end
 
--- Расчёт позиции с упреждением движения
-local function getPredictedTargetCFrame()
-    local murder = getMurderer()
-    if murder and murder.Character then
-        local targetPart = murder.Character:FindFirstChild("Head") or murder.Character:FindFirstChild("HumanoidRootPart")
-        if targetPart then
-            local velocity = targetPart.AssemblyLinearVelocity or Vector3.zero
-            local predictedPos = targetPart.Position + (velocity * 0.13)
-            return CFrame.new(predictedPos), targetPart
+-- ==================== ВСТАВЛЕННЫЙ БЛОК: SILENT AIM & WALLSHOT LOGIC (ИЗ ВТОРОГО СКРИПТА) ====================
+local function getMurdererPart()
+    local rigs = Workspace:FindFirstChild("Rigs")
+    if rigs and rigs:FindFirstChild("Murderer") then
+        local m = rigs.Murderer
+        return m:FindFirstChild("HumanoidRootPart") or m:FindFirstChild("UpperTorso")
+    end
+
+    local roles = getRoles()
+    for plrName, role in pairs(roles) do
+        if role == "Murderer" then
+            local plr = Players:FindFirstChild(plrName)
+            if plr and plr.Character then
+                return plr.Character:FindFirstChild("HumanoidRootPart") or plr.Character:FindFirstChild("UpperTorso")
+            end
         end
     end
-    return nil, nil
+    return nil
 end
 
--- ==================== ХУК ВЫСТРЕЛА (ПРОСТРЕЛ СКВОЗЬ СТЕНЫ) ====================
-local shootEvent = ReplicatedStorage:FindFirstChild("Shoot", true)
+local function getKnifeTargetPart()
+    local roles = getRoles()
+    local myPos = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.Position) or Vector3.zero
 
-if shootEvent and shootEvent:IsA("RemoteEvent") then
-    local oldFireServer
-    
-    oldFireServer = hookfunction(shootEvent.FireServer, newcclosure(function(self, ...)
-        local args = {...}
-        
-        if wallbangEnabled and not checkcaller() then
-            local predCFrame, _ = getPredictedTargetCFrame()
-            if predCFrame then
-                if #args >= 2 then
-                    args[1] = predCFrame * CFrame.new(0, 0, -0.2)
-                    args[2] = predCFrame
-                else
-                    for i = 1, #args do
-                        if typeof(args[i]) == "CFrame" then
-                            args[i] = predCFrame
-                        elseif typeof(args[i]) == "Vector3" then
-                            args[i] = predCFrame.Position
-                        end
-                    end
-                end
+    for plrName, role in pairs(roles) do
+        if (role == "Sheriff" or role == "Hero") and plrName ~= LocalPlayer.Name then
+            local plr = Players:FindFirstChild(plrName)
+            if plr and plr.Character then
+                local part = plr.Character:FindFirstChild("HumanoidRootPart") or plr.Character:FindFirstChild("UpperTorso")
+                if part then return part end
             end
-
-            local disabledParts = {}
-            for _, object in ipairs(Workspace:GetDescendants()) do
-                if object:IsA("BasePart") and object.CanCollide then
-                    local isPlayerPart = false
-                    for _, plr in ipairs(Players:GetPlayers()) do
-                        if plr.Character and object:IsDescendantOf(plr.Character) then
-                            isPlayerPart = true
-                            break
-                        end
-                    end
-                    if not isPlayerPart then
-                        object.CanCollide = false
-                        table.insert(disabledParts, object)
-                    end
-                end
-            end
-            
-            local result = oldFireServer(self, unpack(args))
-            
-            task.spawn(function()
-                task.wait()
-                for _, part in ipairs(disabledParts) do
-                    if part and part.Parent then
-                        part.CanCollide = true
-                    end
-                end
-            end)
-            
-            return result
         end
-        
-        return oldFireServer(self, ...)
-    end))
+    end
+
+    local closestPart = nil
+    local shortestDist = math.huge
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+            local part = plr.Character:FindFirstChild("HumanoidRootPart") or plr.Character:FindFirstChild("UpperTorso")
+            if hum and hum.Health > 0 and part then
+                local dist = (part.Position - myPos).Magnitude
+                if dist < shortestDist then
+                    shortestDist = dist
+                    closestPart = part
+                end
+            end
+        end
+    end
+
+    return closestPart
 end
+
+local function getPredictedPosition(targetPart)
+    if not targetPart or not targetPart.Parent then return nil end
+
+    local targetPos = targetPart.Position
+    local targetVelocity = targetPart.AssemblyLinearVelocity or targetPart.Velocity or Vector3.zero
+    
+    if targetVelocity.Magnitude < 0.5 then
+        return targetPos
+    end
+
+    return targetPos + (targetVelocity * 0.2)
+end
+
+local isCustomFiring = false
+local rawNamecall
+
+rawNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+
+    if not checkcaller() and (method == "FireServer" or method == "fireServer") and aimbotEnabled and not isCustomFiring then
+        -- 1. СТРЕЛЬБА ИЗ ПИСТОЛЕТА
+        if self.Name == "Shoot" then
+            local targetPart = getMurdererPart()
+            local predictedPos = getPredictedPosition(targetPart)
+            
+            if predictedPos then
+                isCustomFiring = true
+                
+                local originalOrigin = args[1]
+                local finalOriginCFrame = originalOrigin
+                local targetCFrame = CFrame.new(predictedPos)
+
+                if wallbangEnabled then
+                    local myPos = (originalOrigin and originalOrigin.Position) or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.Position) or Vector3.zero
+                    local fireDir = (predictedPos - myPos).Unit
+                    if fireDir.Magnitude == 0 then fireDir = Vector3.new(0, 0, -1) end
+                    
+                    local wallshotOriginPos = predictedPos - (fireDir * 2)
+                    finalOriginCFrame = CFrame.new(wallshotOriginPos, predictedPos)
+                end
+
+                self:FireServer(finalOriginCFrame, targetCFrame)
+                isCustomFiring = false
+                return nil
+            end
+
+        -- 2. БРОСОК НОЖА
+        elseif self.Name == "KnifeThrown" then
+            local targetPart = getKnifeTargetPart()
+            local predictedPos = getPredictedPosition(targetPart)
+
+            if predictedPos then
+                isCustomFiring = true
+
+                local myPos = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.Position) or Vector3.zero
+                local throwDir = (predictedPos - myPos).Unit
+                if throwDir.Magnitude == 0 then throwDir = Vector3.new(0, 0, -1) end
+
+                local originPos = myPos
+                if wallbangEnabled then
+                    originPos = predictedPos - (throwDir * 2)
+                end
+
+                local originCFrame = CFrame.new(originPos, predictedPos)
+                local targetCFrame = CFrame.new(predictedPos)
+
+                self:FireServer(originCFrame, targetCFrame)
+                isCustomFiring = false
+                return nil
+            end
+        end
+    end
+
+    return rawNamecall(self, ...)
+end))
 
 -- ==================== ОКНО RAYFIELD ====================
 local Window = Rayfield:CreateWindow({
@@ -199,13 +255,13 @@ local MiscTab = Window:CreateTab("⚙️ Телепорты & Разное", 448
 CombatTab:CreateSection("📱 Настройки Стрельбы")
 
 CombatTab:CreateToggle({
-   Name = "🧱 Wallbang (Hook Noclip + Pred)",
+   Name = "🧱 Wallbang (Прострел сквозь стены)",
    CurrentValue = true,
    Callback = function(Value) wallbangEnabled = Value end,
 })
 
 CombatTab:CreateToggle({
-   Name = "🎯 Touch Lock (Доводка Камеры)",
+   Name = "🎯 Silent Aim / Touch Lock",
    CurrentValue = false,
    Callback = function(Value) aimbotEnabled = Value end,
 })
@@ -283,17 +339,14 @@ RunService.RenderStepped:Connect(function()
     fovCircle.Radius = aimbotFovRadius
     fovCircle.Visible = (aimbotEnabled or autoTriggerEnabled) and aimbotShowFov
 
-    local predCFrame, targetPart = getPredictedTargetCFrame()
-    if predCFrame and targetPart then
-        local screenPos, onScreen = Camera:WorldToViewportPoint(predCFrame.Position)
+    local targetPart = getMurdererPart()
+    local predPos = getPredictedPosition(targetPart)
+    if predPos then
+        local screenPos, onScreen = Camera:WorldToViewportPoint(predPos)
         local targetScreenPos = Vector2.new(screenPos.X, screenPos.Y)
         local distanceToCenter = (targetScreenPos - screenCenter).Magnitude
 
         if (onScreen and distanceToCenter <= aimbotFovRadius) or wallbangEnabled then
-            if aimbotEnabled and onScreen then
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, predCFrame.Position)
-            end
-
             if autoTriggerEnabled and (tick() - lastShotTime > 0.4) then
                 local char, hum, _ = getCharacter()
                 if char then
