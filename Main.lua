@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V37.6 FULL SCRIPT (CAMERA AIMLOCK + WALLSHOT)
+-- MM2 ULTIMATE V37.7 FULL SCRIPT (ALWAYS CAMERA AIMLOCK + WALLBANG)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -21,7 +21,6 @@ local autoFarmEnabled = false
 local autoPickGunEnabled = false
 local gunEspEnabled = false
 local ghostModeEnabled = false
-local antiKillEnabled = false
 local noclipEnabled = false
 local maxAntiFlingEnabled = false
 
@@ -33,7 +32,7 @@ local customCrosshairEnabled = false
 local customFovEnabled = false
 local targetFovValue = 70
 
--- MOBILE AIMBOT & WALLBANG
+-- AIMBOT & WALLBANG
 local aimbotEnabled = false
 local autoTriggerEnabled = false
 local aimbotShowFov = true
@@ -57,7 +56,6 @@ local function getCharacter()
     return nil, nil, nil
 end
 
--- Получение данных ролей с сервера MM2
 local function getRoles()
     local getPlayerData = ReplicatedStorage:FindFirstChild("GetPlayerData", true)
     if not getPlayerData then return {} end
@@ -98,7 +96,16 @@ local function getMurdererPart()
     local rigs = Workspace:FindFirstChild("Rigs")
     if rigs and rigs:FindFirstChild("Murderer") then
         local m = rigs.Murderer
-        return m:FindFirstChild("HumanoidRootPart") or m:FindFirstChild("UpperTorso")
+        return m:FindFirstChild("HumanoidRootPart") or m:FindFirstChild("UpperTorso") or m:FindFirstChild("Head")
+    end
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character then
+            local hasKnife = plr.Character:FindFirstChild("Knife") or (plr:FindFirstChild("Backpack") and plr.Backpack:FindFirstChild("Knife"))
+            if hasKnife then
+                return plr.Character:FindFirstChild("HumanoidRootPart") or plr.Character:FindFirstChild("UpperTorso") or plr.Character:FindFirstChild("Head")
+            end
+        end
     end
 
     local roles = getRoles()
@@ -106,16 +113,7 @@ local function getMurdererPart()
         if role == "Murderer" then
             local plr = Players:FindFirstChild(plrName)
             if plr and plr.Character then
-                return plr.Character:FindFirstChild("HumanoidRootPart") or plr.Character:FindFirstChild("UpperTorso")
-            end
-        end
-    end
-
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer and plr.Character then
-            local hasKnife = plr.Character:FindFirstChild("Knife") or (plr:FindFirstChild("Backpack") and plr.Backpack:FindFirstChild("Knife"))
-            if hasKnife then
-                return plr.Character:FindFirstChild("HumanoidRootPart") or plr.Character:FindFirstChild("UpperTorso")
+                return plr.Character:FindFirstChild("HumanoidRootPart") or plr.Character:FindFirstChild("UpperTorso") or plr.Character:FindFirstChild("Head")
             end
         end
     end
@@ -167,10 +165,10 @@ local function getPredictedPosition(targetPart)
         return targetPos
     end
 
-    return targetPos + (targetVelocity * 0.2)
+    return targetPos + (targetVelocity * 0.18)
 end
 
--- ==================== SILENT AIM & CAMERA HOOK ====================
+-- ==================== SILENT AIM HOOK (ПАКЕТЫ СТРЕЛЬБЫ) ====================
 local isCustomFiring = false
 local rawNamecall
 
@@ -179,7 +177,6 @@ rawNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     local args = {...}
 
     if not checkcaller() and (method == "FireServer" or method == "fireServer") and aimbotEnabled and not isCustomFiring then
-        -- 1. СТРЕЛЬБА ИЗ ПИСТОЛЕТА
         if self.Name == "Shoot" then
             local targetPart = getMurdererPart()
             local predictedPos = getPredictedPosition(targetPart)
@@ -187,9 +184,6 @@ rawNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
             if predictedPos then
                 isCustomFiring = true
                 
-                -- Автоматический поворот камеры на Мардера
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, predictedPos)
-
                 local myChar, _, myRoot = getCharacter()
                 local originPos = myRoot and myRoot.Position or (args[1] and args[1].Position) or Vector3.zero
                 
@@ -207,15 +201,12 @@ rawNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
                 return nil
             end
 
-        -- 2. БРОСОК НОЖА
         elseif self.Name == "KnifeThrown" then
             local targetPart = getKnifeTargetPart()
             local predictedPos = getPredictedPosition(targetPart)
 
             if predictedPos then
                 isCustomFiring = true
-
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, predictedPos)
 
                 local myChar, _, myRoot = getCharacter()
                 local originPos = myRoot and myRoot.Position or Vector3.zero
@@ -241,7 +232,7 @@ end))
 
 -- ==================== ОКНО RAYFIELD ====================
 local Window = Rayfield:CreateWindow({
-   Name = "✨ MM2 ULTIMATE V37.6",
+   Name = "✨ MM2 ULTIMATE V37.7",
    LoadingTitle = "Загрузка скрипта...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
@@ -264,7 +255,7 @@ CombatTab:CreateToggle({
 })
 
 CombatTab:CreateToggle({
-   Name = "🎯 Silent Aim / Touch Lock",
+   Name = "🎯 Continuous AimLock (Постоянная наводка)",
    CurrentValue = false,
    Callback = function(Value) aimbotEnabled = Value end,
 })
@@ -326,7 +317,7 @@ CombatTab:CreateButton({
    end,
 })
 
--- FOV Circle Drawing
+-- ==================== ПОСТОЯННАЯ НАВОДКА КАМЕРЫ & FOV ====================
 local fovCircle = Drawing.new("Circle")
 fovCircle.Thickness = 2
 fovCircle.Color = Color3.fromRGB(255, 50, 50)
@@ -344,21 +335,26 @@ RunService.RenderStepped:Connect(function()
 
     local targetPart = getMurdererPart()
     local predPos = getPredictedPosition(targetPart)
+
     if predPos then
         local screenPos, onScreen = Camera:WorldToViewportPoint(predPos)
         local targetScreenPos = Vector2.new(screenPos.X, screenPos.Y)
         local distanceToCenter = (targetScreenPos - screenCenter).Magnitude
 
-        if (onScreen and distanceToCenter <= aimbotFovRadius) or wallbangEnabled then
-            if autoTriggerEnabled and (tick() - lastShotTime > 0.4) then
-                local char, hum, _ = getCharacter()
-                if char then
-                    local gun = char:FindFirstChild("Gun") or (LocalPlayer:FindFirstChild("Backpack") and LocalPlayer.Backpack:FindFirstChild("Gun"))
-                    if gun then
-                        if gun.Parent ~= char and hum then hum:EquipTool(gun) end
-                        gun:Activate()
-                        lastShotTime = tick()
-                    end
+        -- ПОСТОЯННОЕ НАВЕДЕНИЕ КАМЕРЫ (Если включен Аимбот)
+        if aimbotEnabled and (distanceToCenter <= aimbotFovRadius or wallbangEnabled) then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, predPos)
+        end
+
+        -- АВТО-ВЫСТРЕЛ
+        if autoTriggerEnabled and (tick() - lastShotTime > 0.35) and (distanceToCenter <= aimbotFovRadius or wallbangEnabled) then
+            local char, hum, _ = getCharacter()
+            if char then
+                local gun = char:FindFirstChild("Gun") or (LocalPlayer:FindFirstChild("Backpack") and LocalPlayer.Backpack:FindFirstChild("Gun"))
+                if gun then
+                    if gun.Parent ~= char and hum then hum:EquipTool(gun) end
+                    gun:Activate()
+                    lastShotTime = tick()
                 end
             end
         end
@@ -818,4 +814,4 @@ RunService.Heartbeat:Connect(function()
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 end)
 
-Rayfield:Notify({Title = "MM2 Ultimate V37.6", Content = "Скрипт успешно запущен!", Duration = 4})
+Rayfield:Notify({Title = "MM2 Ultimate V37.7", Content = "Скрипт полностью запущен!", Duration = 4})
