@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V38.0 FULL SCRIPT (AIMLOCK + WALLBANG + CHAMS + AUTO-FARM)
+-- MM2 ULTIMATE V38.0 FULL SCRIPT (AIMLOCK + WALLBANG + CHAMS + AUTO-FARM + ROFL)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -24,6 +24,12 @@ local gunEspEnabled = false
 local ghostModeEnabled = false
 local noclipEnabled = false
 local maxAntiFlingEnabled = false
+
+-- Rofl Variables
+local isRoflEnabled = false
+local roflTargetName = ""
+local roflAnimationId = 120673504606569
+local roflTrack = nil
 
 -- Speed & Movement
 local speedEnabled = false
@@ -249,6 +255,7 @@ local Window = Rayfield:CreateWindow({
 local CombatTab = Window:CreateTab("🎯 Аимбот & Стрельба", 4483362458)
 local VisualsTab = Window:CreateTab("👁️ Визуал & ESP", 4483362458)
 local FlingTab = Window:CreateTab("💥 Рванка & Аура", 4483362458)
+local RoflTab = Window:CreateTab("🤡 Rofl", 4483362458)
 local FarmingTab = Window:CreateTab("💰 Авто-Фарм", 4483362458)
 local MiscTab = Window:CreateTab("⚙️ Телепорты & Разное", 4483362458)
 
@@ -746,6 +753,91 @@ FlingTab:CreateToggle({
    Callback = function(Value) maxAntiFlingEnabled = Value end,
 })
 
+-- ==================== Вкладка: ROFL ====================
+RoflTab:CreateSection("Настройки Привязки к Голове")
+
+RoflTab:CreateInput({
+   Name = "Имя цели (Target Name)",
+   PlaceholderText = "Введите ник или его часть...",
+   RemoveTextOnFocusLost = false,
+   Callback = function(Text)
+      roflTargetName = Text
+   end,
+})
+
+local function setRoflAnimation(state)
+    local char, hum = getCharacter()
+    if not char or not hum then return end
+
+    if state then
+        if not roflTrack then
+            local anim = Instance.new("Animation")
+            anim.AnimationId = "rbxassetid://" .. tostring(roflAnimationId)
+            roflTrack = hum:LoadAnimation(anim)
+            roflTrack.Priority = Enum.AnimationPriority.Action
+            roflTrack:Play()
+        end
+    else
+        if roflTrack then
+            roflTrack:Stop()
+            roflTrack = nil
+        end
+    end
+end
+
+RoflTab:CreateToggle({
+   Name = "🤡 Включить Head Attach (Привязаться к Голове)",
+   CurrentValue = false,
+   Callback = function(Value)
+      isRoflEnabled = Value
+      if not Value then
+          setRoflAnimation(false)
+      end
+   end,
+})
+
+RunService.Heartbeat:Connect(function()
+    if not isRoflEnabled or roflTargetName == "" then 
+        if roflTrack then setRoflAnimation(false) end
+        return 
+    end
+
+    local char, hum, root = getCharacter()
+    if not char or not root then return end
+
+    local targetPlayer = nil
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            local nameMatch = plr.Name:lower():find(roflTargetName:lower())
+            local displayMatch = plr.DisplayName:lower():find(roflTargetName:lower())
+            if nameMatch or displayMatch then
+                targetPlayer = plr
+                break
+            end
+        end
+    end
+
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Head") then
+        local targetHead = targetPlayer.Character.Head
+        
+        if not roflTrack then
+            setRoflAnimation(true)
+        end
+
+        for _, part in ipairs(char:GetChildren()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+
+        root.CFrame = targetHead.CFrame * CFrame.new(0, 0.3, 0) * CFrame.Angles(math.rad(180), 0, 0)
+        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    else
+        setRoflAnimation(false)
+    end
+end)
+
 -- ==================== Вкладка: АВТО-ФАРМ ====================
 FarmingTab:CreateSection("Настройки Фарма")
 
@@ -920,7 +1012,7 @@ AntiFlingVelocity.MaxForce = Vector3.new(0, 0, 0)
 AntiFlingVelocity.Velocity = Vector3.new(0, 0, 0)
 
 RunService.Stepped:Connect(function()
-    if not maxAntiFlingEnabled or isFlingingSingle or isFlingingAll or isSpinAuraEnabled then 
+    if not maxAntiFlingEnabled or isFlingingSingle or isFlingingAll or isSpinAuraEnabled or isRoflEnabled then 
         AntiFlingVelocity.MaxForce = Vector3.new(0, 0, 0)
         return 
     end
@@ -945,7 +1037,7 @@ RunService.Stepped:Connect(function()
 end)
 
 RunService.Heartbeat:Connect(function()
-    if not maxAntiFlingEnabled or isFlingingSingle or isFlingingAll or autoFarmEnabled or isSpinAuraEnabled then return end
+    if not maxAntiFlingEnabled or isFlingingSingle or isFlingingAll or autoFarmEnabled or isSpinAuraEnabled or isRoflEnabled then return end
     local char, hum, root = getCharacter()
     if not char or not root or not hum then return end
 
@@ -969,4 +1061,4 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
-Rayfield:Notify({Title = "MM2 Ultimate V38.0", Content = "Скрипт V38.0 успешно загружен!", Duration = 4})
+Rayfield:Notify({Title = "MM2 Ultimate V38.0", Content = "Скрипт V38.0 успешно загружен с вкладкой ROFL!", Duration = 4})
