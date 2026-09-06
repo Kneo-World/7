@@ -1,5 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V37.4 (INSTANT MAP NOCLIP ON SHOOT EVENT)
+-- MM2 ULTIMATE V37.5 (HOOKFUNCTION + PREDICTION + FLING FIX)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -88,57 +88,67 @@ local function getMurderer()
     return nil
 end
 
-local function getMurdererTargetPart()
+-- Расчёт позиции с учётом предсказания движения (Lead Prediction)
+local function getPredictedTargetCFrame()
     local murder = getMurderer()
     if murder and murder.Character then
-        return murder.Character:FindFirstChild("Head") or murder.Character:FindFirstChild("HumanoidRootPart")
+        local targetPart = murder.Character:FindFirstChild("Head") or murder.Character:FindFirstChild("HumanoidRootPart")
+        if targetPart then
+            local velocity = targetPart.AssemblyLinearVelocity or Vector3.zero
+            -- Небольшой упреждающий вектор с учётом пинга (0.13 сек)
+            local predictedPos = targetPart.Position + (velocity * 0.13) 
+            return CFrame.new(predictedPos), targetPart
+        end
     end
-    return nil
+    return nil, nil
 end
 
--- ==================== МГНОВЕННЫЙ NOCLIP КАРТЫ НА ИВЕНТ SHOOT ====================
+-- ==================== ПРАВИЛЬНЫЙ ХУК ЧЕРЕЗ HOOKFUNCTION ====================
 local shootEvent = ReplicatedStorage:FindFirstChild("Shoot", true)
 
 if shootEvent and shootEvent:IsA("RemoteEvent") then
-    local oldFireServer = shootEvent.FireServer
-    
-    shootEvent.FireServer = function(self, ...)
+    local oldFireServer
+    oldFireServer = hookfunction(shootEvent.FireServer, newcclosure(function(self, ...)
         local args = {...}
         
-        if wallbangEnabled then
-            -- 1. Если включен аимбот, направляем CFrame выстрела в Мардера
-            local targetPart = getMurdererTargetPart()
-            if targetPart then
-                local targetCFrame = targetPart.CFrame
+        if wallbangEnabled and not checkcaller() then
+            local predCFrame, _ = getPredictedTargetCFrame()
+            
+            if predCFrame then
+                -- Подменяем координаты на CFrame с упреждением
                 if #args >= 2 then
-                    args[1] = targetCFrame * CFrame.new(0, 0, -0.5)
-                    args[2] = targetCFrame
+                    args[1] = predCFrame * CFrame.new(0, 0, -0.2) -- Точка прямо перед головой с предсказанием
+                    args[2] = predCFrame                         -- Точка цели с предсказанием
+                else
+                    for i = 1, #args do
+                        if typeof(args[i]) == "CFrame" then
+                            args[i] = predCFrame
+                        elseif typeof(args[i]) == "Vector3" then
+                            args[i] = predCFrame.Position
+                        end
+                    end
                 end
             end
 
-            -- 2. Отключаем коллизию у карты на 1 кадр для пролёта пули
+            -- Микро-отключение стен карты при выстреле
             task.spawn(function()
                 local modifiedParts = {}
-                
                 for _, part in ipairs(Workspace:GetDescendants()) do
                     if part:IsA("BasePart") and part.CanCollide then
-                        -- Игнорируем персонажей, чтобы не сломать попадание пули
-                        local isCharacterPart = false
+                        local isChar = false
                         for _, p in ipairs(Players:GetPlayers()) do
                             if p.Character and part:IsDescendantOf(p.Character) then
-                                isCharacterPart = true
+                                isChar = true
                                 break
                             end
                         end
-                        
-                        if not isCharacterPart then
+                        if not isChar then
                             part.CanCollide = false
                             table.insert(modifiedParts, part)
                         end
                     end
                 end
                 
-                -- Ждем микросекунду (1 кадр) и возвращаем коллизию обратно
                 task.wait()
                 
                 for _, part in ipairs(modifiedParts) do
@@ -150,13 +160,13 @@ if shootEvent and shootEvent:IsA("RemoteEvent") then
         end
         
         return oldFireServer(self, unpack(args))
-    end
+    end))
 end
 
 -- ========== ОКНО RAYFIELD ==========
 local Window = Rayfield:CreateWindow({
-   Name = "✨ MM2 V37.4 (INSTANT NOCLIP SHOOT)",
-   LoadingTitle = "Загрузка скрипта и хука Shoot...",
+   Name = "✨ MM2 V37.5 (HOOKFUNCTION & PREDICTION)",
+   LoadingTitle = "Загрузка обновленного хука...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
@@ -169,10 +179,10 @@ local FarmingTab = Window:CreateTab("💰 Авто-Фарм", 4483362458)
 local MiscTab = Window:CreateTab("⚙️ Разное & Настройки", 4483362458)
 
 -- ==================== Вкладка: АИМБОТ & БОЙ ====================
-CombatTab:CreateSection("📱 Аимбот под Тапы Экрана")
+CombatTab:CreateSection("📱 Аимбот и Предсказание")
 
 CombatTab:CreateToggle({
-   Name = "🧱 Wallbang (Отключение стен при выстреле)",
+   Name = "🧱 Wallbang + Предсказание (hookfunction)",
    CurrentValue = true,
    Callback = function(Value) 
       wallbangEnabled = Value 
@@ -265,16 +275,15 @@ RunService.RenderStepped:Connect(function()
     fovCircle.Radius = aimbotFovRadius
     fovCircle.Visible = (aimbotEnabled or autoTriggerEnabled) and aimbotShowFov
 
-    local murderer = getMurderer()
-    if murderer and murderer.Character and murderer.Character:FindFirstChild("Head") then
-        local targetHead = murderer.Character.Head
-        local screenPos, onScreen = Camera:WorldToViewportPoint(targetHead.Position)
+    local predCFrame, targetPart = getPredictedTargetCFrame()
+    if predCFrame and targetPart then
+        local screenPos, onScreen = Camera:WorldToViewportPoint(predCFrame.Position)
         local targetScreenPos = Vector2.new(screenPos.X, screenPos.Y)
         local distanceToCenter = (targetScreenPos - screenCenter).Magnitude
 
         if (onScreen and distanceToCenter <= aimbotFovRadius) or wallbangEnabled then
             if aimbotEnabled and onScreen then
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHead.Position)
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, predCFrame.Position)
             end
 
             if autoTriggerEnabled and (tick() - lastShotTime > 0.4) then
@@ -522,7 +531,7 @@ task.spawn(function()
     end
 end)
 
--- ДВИЖОК РВАНКИ
+-- ИСПРАВЛЕННЫЙ ДВИЖОК РВАНКИ (С ПОЛНОЦЕННЫМ ВРАЩЕНИЕМ)
 local function emergencyStop()
     isFlingingSingle = false 
     isFlingingAll = false
@@ -544,7 +553,7 @@ local function startFlingLoop(getTargetFunc, isRunningCheck, durationLimit)
     if not root then return end
     originalCFrame = root.CFrame
     local startTime = tick()
-    local angle = 0
+    local rotAngle = 0
 
     local steppedConn = RunService.Stepped:Connect(function()
         if not isRunningCheck() then return end
@@ -570,14 +579,16 @@ local function startFlingLoop(getTargetFunc, isRunningCheck, durationLimit)
         local targetRoot = currentTarget and currentTarget.Character and (currentTarget.Character:FindFirstChild("HumanoidRootPart") or currentTarget.Character:FindFirstChild("Torso"))
         
         if targetRoot and currentRoot then
-            angle = (angle + 100) % 360
-            local targetVel = targetRoot.AssemblyLinearVelocity
-            local predictedPos = targetRoot.Position + (targetVel * 0.15)
-            local offset = Vector3.new(math.cos(math.rad(angle)) * 1.5, 0, math.sin(math.rad(angle)) * 1.5)
+            rotAngle = (rotAngle + 100) % 360
+            local predictedPos = targetRoot.Position + (targetRoot.AssemblyLinearVelocity * 0.1)
             
-            currentRoot.CFrame = CFrame.new(predictedPos + offset)
-            currentRoot.AssemblyLinearVelocity = (angle % 20 == 0) and Vector3.new(999999, 999999, 999999) or Vector3.new(0, 999999, 0)
-            currentRoot.AssemblyAngularVelocity = Vector3.new(999999, 999999, 999999)
+            -- Вращение CFrame персонажа во всех плоскостях
+            local rotation = CFrame.Angles(math.rad(rotAngle * 2), math.rad(rotAngle), math.rad(rotAngle * 3))
+            local offset = Vector3.new(math.cos(math.rad(rotAngle)) * 1.2, 0, math.sin(math.rad(rotAngle)) * 1.2)
+            
+            currentRoot.CFrame = CFrame.new(predictedPos + offset) * rotation
+            currentRoot.AssemblyLinearVelocity = Vector3.new(99999, 99999, 99999)
+            currentRoot.AssemblyAngularVelocity = Vector3.new(99999, 99999, 99999)
         end
     end)
 end
@@ -823,4 +834,4 @@ RunService.Heartbeat:Connect(function()
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 end)
 
-Rayfield:Notify({Title = "MM2 Ultimate V37.4", Content = "Map Noclip на ивент Shoot активен!", Duration = 4})
+Rayfield:Notify({Title = "MM2 Ultimate V37.5", Content = "Hookfunction + Предсказание активны!", Duration = 4})
