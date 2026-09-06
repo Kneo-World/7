@@ -172,6 +172,7 @@ local function getPredictedPosition(targetPart)
     return targetPos + (targetVelocity * 0.2)
 end
 
+-- ==================== ИСПРАВЛЕННЫЙ БЛОК: SILENT AIM & WALLSHOT ====================
 local isCustomFiring = false
 local rawNamecall
 
@@ -188,20 +189,21 @@ rawNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
             if predictedPos then
                 isCustomFiring = true
                 
-                local originalOrigin = args[1]
-                local finalOriginCFrame = originalOrigin
-                local targetCFrame = CFrame.new(predictedPos)
-
+                local myChar, _, myRoot = getCharacter()
+                local originPos = myRoot and myRoot.Position or (args[1] and args[1].Position) or Vector3.zero
+                
+                -- Если включен wallbang, смещаем точку вылета пули прямо к цели (в пределах 1 studs), чтобы пробить стены
                 if wallbangEnabled then
-                    local myPos = (originalOrigin and originalOrigin.Position) or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.Position) or Vector3.zero
-                    local fireDir = (predictedPos - myPos).Unit
-                    if fireDir.Magnitude == 0 then fireDir = Vector3.new(0, 0, -1) end
-                    
-                    local wallshotOriginPos = predictedPos - (fireDir * 2)
-                    finalOriginCFrame = CFrame.new(wallshotOriginPos, predictedPos)
+                    local dir = (predictedPos - originPos).Unit
+                    if dir.Magnitude == 0 then dir = Vector3.new(0, 0, -1) end
+                    originPos = predictedPos - (dir * 1)
                 end
 
-                self:FireServer(finalOriginCFrame, targetCFrame)
+                local originCFrame = CFrame.new(originPos, predictedPos)
+                local targetCFrame = CFrame.new(predictedPos)
+
+                -- Отправляем исправленный выстрел
+                self:FireServer(originCFrame, targetCFrame)
                 isCustomFiring = false
                 return nil
             end
@@ -214,13 +216,13 @@ rawNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
             if predictedPos then
                 isCustomFiring = true
 
-                local myPos = (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.Position) or Vector3.zero
-                local throwDir = (predictedPos - myPos).Unit
-                if throwDir.Magnitude == 0 then throwDir = Vector3.new(0, 0, -1) end
+                local myChar, _, myRoot = getCharacter()
+                local originPos = myRoot and myRoot.Position or Vector3.zero
 
-                local originPos = myPos
                 if wallbangEnabled then
-                    originPos = predictedPos - (throwDir * 2)
+                    local dir = (predictedPos - originPos).Unit
+                    if dir.Magnitude == 0 then dir = Vector3.new(0, 0, -1) end
+                    originPos = predictedPos - (dir * 1)
                 end
 
                 local originCFrame = CFrame.new(originPos, predictedPos)
