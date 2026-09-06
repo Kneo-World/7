@@ -1,6 +1,5 @@
 -- ============================================================
--- MM2 ULTIMATE V37.6 FULL WORKING SCRIPT
--- Features: FireServer Hook + Noclip Map + Lead Prediction + Fling Fix
+-- MM2 ULTIMATE V37.6 FULL SCRIPT (HOOK NOCLIP + GETPLAYERDATA)
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -11,7 +10,7 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local Camera = Workspace.CurrentCamera
-local player = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer
 
 -- ========== Переменные состояний ==========
 local isFlingingSingle = false
@@ -51,21 +50,37 @@ local tpNameMap = {}
 
 -- ========== Вспомогательные функции ==========
 local function getCharacter()
-    local char = player.Character
+    local char = LocalPlayer.Character
     if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") then
         return char, char.Humanoid, char.HumanoidRootPart
     end
     return nil, nil, nil
 end
 
+-- Получение данных ролей с сервера MM2
+local function getRoles()
+    local getPlayerData = ReplicatedStorage:FindFirstChild("GetPlayerData", true)
+    if not getPlayerData then return {} end
+    local success, data = pcall(function() return getPlayerData:InvokeServer() end)
+    if not success or typeof(data) ~= "table" then return {} end
+    
+    local roles = {}
+    for plrName, plrData in pairs(data) do
+        if not plrData.Dead then
+            roles[plrName] = plrData.Role
+        end
+    end
+    return roles
+end
+
 local function getRoleColor(plr)
     if not plr or not plr.Character then return Color3.fromRGB(0, 255, 120) end
     if plr.Character:FindFirstChild("Knife") or (plr:FindFirstChild("Backpack") and plr.Backpack:FindFirstChild("Knife")) then
-        return Color3.fromRGB(255, 35, 35) -- Murderer
+        return Color3.fromRGB(255, 35, 35)
     elseif plr.Character:FindFirstChild("Gun") or (plr:FindFirstChild("Backpack") and plr.Backpack:FindFirstChild("Gun")) then
-        return Color3.fromRGB(35, 135, 255) -- Sheriff
+        return Color3.fromRGB(35, 135, 255)
     end
-    return Color3.fromRGB(0, 255, 120) -- Innocent
+    return Color3.fromRGB(0, 255, 120)
 end
 
 local function getRoleName(plr)
@@ -79,9 +94,10 @@ local function getRoleName(plr)
 end
 
 local function getMurderer()
+    local roles = getRoles()
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-            if plr.Character:FindFirstChild("Knife") or (plr:FindFirstChild("Backpack") and plr.Backpack:FindFirstChild("Knife")) then
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            if roles[plr.Name] == "Murderer" or plr.Character:FindFirstChild("Knife") or (plr:FindFirstChild("Backpack") and plr.Backpack:FindFirstChild("Knife")) then
                 return plr
             end
         end
@@ -89,21 +105,21 @@ local function getMurderer()
     return nil
 end
 
--- Расчёт позиции с упреждением движения (Lead Prediction)
+-- Расчёт позиции с упреждением движения
 local function getPredictedTargetCFrame()
     local murder = getMurderer()
     if murder and murder.Character then
         local targetPart = murder.Character:FindFirstChild("Head") or murder.Character:FindFirstChild("HumanoidRootPart")
         if targetPart then
             local velocity = targetPart.AssemblyLinearVelocity or Vector3.zero
-            local predictedPos = targetPart.Position + (velocity * 0.13) -- Задержка упреждения 0.13с
+            local predictedPos = targetPart.Position + (velocity * 0.13)
             return CFrame.new(predictedPos), targetPart
         end
     end
     return nil, nil
 end
 
--- ==================== ХУК ВЫСТРЕЛА (БЛОКИРОВКА + NOCLIP MAP + ВОЗВРАТ) ====================
+-- ==================== ХУК ВЫСТРЕЛА (ПРОСТРЕЛ СКВОЗЬ СТЕНЫ) ====================
 local shootEvent = ReplicatedStorage:FindFirstChild("Shoot", true)
 
 if shootEvent and shootEvent:IsA("RemoteEvent") then
@@ -113,7 +129,6 @@ if shootEvent and shootEvent:IsA("RemoteEvent") then
         local args = {...}
         
         if wallbangEnabled and not checkcaller() then
-            -- 1. Подменяем координаты выстрела на позицию с предсказанием
             local predCFrame, _ = getPredictedTargetCFrame()
             if predCFrame then
                 if #args >= 2 then
@@ -130,7 +145,6 @@ if shootEvent and shootEvent:IsA("RemoteEvent") then
                 end
             end
 
-            -- 2. Отключаем коллизию у карты перед отправкой
             local disabledParts = {}
             for _, object in ipairs(Workspace:GetDescendants()) do
                 if object:IsA("BasePart") and object.CanCollide then
@@ -148,12 +162,10 @@ if shootEvent and shootEvent:IsA("RemoteEvent") then
                 end
             end
             
-            -- 3. Вызываем оригинал
             local result = oldFireServer(self, unpack(args))
             
-            -- 4. Мгновенно возвращаем коллизию обратно
             task.spawn(function()
-                task.wait() -- 1 кадр задержки
+                task.wait()
                 for _, part in ipairs(disabledParts) do
                     if part and part.Parent then
                         part.CanCollide = true
@@ -168,7 +180,7 @@ if shootEvent and shootEvent:IsA("RemoteEvent") then
     end))
 end
 
--- ========== ОКНО RAYFIELD ==========
+-- ==================== ОКНО RAYFIELD ====================
 local Window = Rayfield:CreateWindow({
    Name = "✨ MM2 ULTIMATE V37.6",
    LoadingTitle = "Загрузка скрипта...",
@@ -227,7 +239,7 @@ CombatTab:CreateButton({
       local char, hum, root = getCharacter()
       if not char then return end
 
-      local knife = char:FindFirstChild("Knife") or (player:FindFirstChild("Backpack") and player.Backpack:FindFirstChild("Knife"))
+      local knife = char:FindFirstChild("Knife") or (LocalPlayer:FindFirstChild("Backpack") and LocalPlayer.Backpack:FindFirstChild("Knife"))
       if not knife then
           Rayfield:Notify({Title = "Ошибка", Content = "Ты не Убийца!", Duration = 2})
           return
@@ -237,7 +249,7 @@ CombatTab:CreateButton({
       local oldPos = root.CFrame
 
       for _, plr in ipairs(Players:GetPlayers()) do
-          if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0 then
+          if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0 then
               local targetRoot = plr.Character.HumanoidRootPart
               root.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 1.2)
               knife:Activate()
@@ -285,7 +297,7 @@ RunService.RenderStepped:Connect(function()
             if autoTriggerEnabled and (tick() - lastShotTime > 0.4) then
                 local char, hum, _ = getCharacter()
                 if char then
-                    local gun = char:FindFirstChild("Gun") or (player:FindFirstChild("Backpack") and player.Backpack:FindFirstChild("Gun"))
+                    local gun = char:FindFirstChild("Gun") or (LocalPlayer:FindFirstChild("Backpack") and LocalPlayer.Backpack:FindFirstChild("Gun"))
                     if gun then
                         if gun.Parent ~= char and hum then hum:EquipTool(gun) end
                         gun:Activate()
@@ -324,7 +336,7 @@ VisualsTab:CreateToggle({ Name = "🎯 Кастомный Прицел (Crosshai
 local ESP_Objects = {}
 
 local function createEspForPlayer(plr)
-    if plr == player then return end
+    if plr == LocalPlayer then return end
     local objects = {
         Tracer = Drawing.new("Line"),
         Box = Drawing.new("Square"),
@@ -448,7 +460,7 @@ local function refreshSortedPlayerLists()
     flingNameMap, tpNameMap = {}, {}
 
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= player then
+        if p ~= LocalPlayer then
             local displayName = p.Name
             if p.Character and (p.Character:FindFirstChild("Knife") or (p:FindFirstChild("Backpack") and p.Backpack:FindFirstChild("Knife"))) then
                 displayName = "🔴 " .. p.Name .. " [MURDER]"
@@ -569,7 +581,7 @@ FlingTab:CreateToggle({
             while isFlingingAll do
                for _, plr in ipairs(Players:GetPlayers()) do
                   if not isFlingingAll then break end
-                  if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                  if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
                      currentTargetPlayer = plr
                      local tRoot = plr.Character.HumanoidRootPart
                      local st = tick()
@@ -607,7 +619,7 @@ RunService.Heartbeat:Connect(function()
 
     root.AssemblyAngularVelocity = Vector3.new(0, 95000, 0)
     for _, otherPlayer in ipairs(Players:GetPlayers()) do
-        if otherPlayer ~= player and otherPlayer.Character then
+        if otherPlayer ~= LocalPlayer and otherPlayer.Character then
             local otherRoot = otherPlayer.Character:FindFirstChild("HumanoidRootPart")
             if otherRoot then
                 if (root.Position - otherRoot.Position).Magnitude < 4.5 then
