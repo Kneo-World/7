@@ -1,5 +1,6 @@
 -- ============================================================
--- MM2 ULTIMATE V37.5 (HOOKFUNCTION + PREDICTION + FLING FIX)
+-- MM2 ULTIMATE V37.6 FULL WORKING SCRIPT
+-- Features: FireServer Hook + Noclip Map + Lead Prediction + Fling Fix
 -- ============================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -88,37 +89,36 @@ local function getMurderer()
     return nil
 end
 
--- Расчёт позиции с учётом предсказания движения (Lead Prediction)
+-- Расчёт позиции с упреждением движения (Lead Prediction)
 local function getPredictedTargetCFrame()
     local murder = getMurderer()
     if murder and murder.Character then
         local targetPart = murder.Character:FindFirstChild("Head") or murder.Character:FindFirstChild("HumanoidRootPart")
         if targetPart then
             local velocity = targetPart.AssemblyLinearVelocity or Vector3.zero
-            -- Небольшой упреждающий вектор с учётом пинга (0.13 сек)
-            local predictedPos = targetPart.Position + (velocity * 0.13) 
+            local predictedPos = targetPart.Position + (velocity * 0.13) -- Задержка упреждения 0.13с
             return CFrame.new(predictedPos), targetPart
         end
     end
     return nil, nil
 end
 
--- ==================== ПРАВИЛЬНЫЙ ХУК ЧЕРЕЗ HOOKFUNCTION ====================
+-- ==================== ХУК ВЫСТРЕЛА (БЛОКИРОВКА + NOCLIP MAP + ВОЗВРАТ) ====================
 local shootEvent = ReplicatedStorage:FindFirstChild("Shoot", true)
 
 if shootEvent and shootEvent:IsA("RemoteEvent") then
     local oldFireServer
+    
     oldFireServer = hookfunction(shootEvent.FireServer, newcclosure(function(self, ...)
         local args = {...}
         
         if wallbangEnabled and not checkcaller() then
+            -- 1. Подменяем координаты выстрела на позицию с предсказанием
             local predCFrame, _ = getPredictedTargetCFrame()
-            
             if predCFrame then
-                -- Подменяем координаты на CFrame с упреждением
                 if #args >= 2 then
-                    args[1] = predCFrame * CFrame.new(0, 0, -0.2) -- Точка прямо перед головой с предсказанием
-                    args[2] = predCFrame                         -- Точка цели с предсказанием
+                    args[1] = predCFrame * CFrame.new(0, 0, -0.2)
+                    args[2] = predCFrame
                 else
                     for i = 1, #args do
                         if typeof(args[i]) == "CFrame" then
@@ -130,79 +130,78 @@ if shootEvent and shootEvent:IsA("RemoteEvent") then
                 end
             end
 
-            -- Микро-отключение стен карты при выстреле
-            task.spawn(function()
-                local modifiedParts = {}
-                for _, part in ipairs(Workspace:GetDescendants()) do
-                    if part:IsA("BasePart") and part.CanCollide then
-                        local isChar = false
-                        for _, p in ipairs(Players:GetPlayers()) do
-                            if p.Character and part:IsDescendantOf(p.Character) then
-                                isChar = true
-                                break
-                            end
-                        end
-                        if not isChar then
-                            part.CanCollide = false
-                            table.insert(modifiedParts, part)
+            -- 2. Отключаем коллизию у карты перед отправкой
+            local disabledParts = {}
+            for _, object in ipairs(Workspace:GetDescendants()) do
+                if object:IsA("BasePart") and object.CanCollide then
+                    local isPlayerPart = false
+                    for _, plr in ipairs(Players:GetPlayers()) do
+                        if plr.Character and object:IsDescendantOf(plr.Character) then
+                            isPlayerPart = true
+                            break
                         end
                     end
+                    if not isPlayerPart then
+                        object.CanCollide = false
+                        table.insert(disabledParts, object)
+                    end
                 end
-                
-                task.wait()
-                
-                for _, part in ipairs(modifiedParts) do
+            end
+            
+            -- 3. Вызываем оригинал
+            local result = oldFireServer(self, unpack(args))
+            
+            -- 4. Мгновенно возвращаем коллизию обратно
+            task.spawn(function()
+                task.wait() -- 1 кадр задержки
+                for _, part in ipairs(disabledParts) do
                     if part and part.Parent then
                         part.CanCollide = true
                     end
                 end
             end)
+            
+            return result
         end
         
-        return oldFireServer(self, unpack(args))
+        return oldFireServer(self, ...)
     end))
 end
 
 -- ========== ОКНО RAYFIELD ==========
 local Window = Rayfield:CreateWindow({
-   Name = "✨ MM2 V37.5 (HOOKFUNCTION & PREDICTION)",
-   LoadingTitle = "Загрузка обновленного хука...",
+   Name = "✨ MM2 ULTIMATE V37.6",
+   LoadingTitle = "Загрузка скрипта...",
    LoadingSubtitle = "by Kneo World",
    ConfigurationSaving = { Enabled = false },
    KeySystem = false
 })
 
-local CombatTab = Window:CreateTab("🎯 Сенсорный Аимбот", 4483362458)
+local CombatTab = Window:CreateTab("🎯 Аимбот & Стрельба", 4483362458)
 local VisualsTab = Window:CreateTab("👁️ Визуал & ESP", 4483362458)
 local FlingTab = Window:CreateTab("💥 Рванка & Аура", 4483362458)
 local FarmingTab = Window:CreateTab("💰 Авто-Фарм", 4483362458)
-local MiscTab = Window:CreateTab("⚙️ Разное & Настройки", 4483362458)
+local MiscTab = Window:CreateTab("⚙️ Телепорты & Разное", 4483362458)
 
--- ==================== Вкладка: АИМБОТ & БОЙ ====================
-CombatTab:CreateSection("📱 Аимбот и Предсказание")
+-- ==================== Вкладка: АИМБОТ ====================
+CombatTab:CreateSection("📱 Настройки Стрельбы")
 
 CombatTab:CreateToggle({
-   Name = "🧱 Wallbang + Предсказание (hookfunction)",
+   Name = "🧱 Wallbang (Hook Noclip + Pred)",
    CurrentValue = true,
-   Callback = function(Value) 
-      wallbangEnabled = Value 
-   end,
+   Callback = function(Value) wallbangEnabled = Value end,
 })
 
 CombatTab:CreateToggle({
-   Name = "🎯 Доводка Камеры на Мардера (Touch Lock)",
+   Name = "🎯 Touch Lock (Доводка Камеры)",
    CurrentValue = false,
-   Callback = function(Value) 
-      aimbotEnabled = Value 
-   end,
+   Callback = function(Value) aimbotEnabled = Value end,
 })
 
 CombatTab:CreateToggle({
    Name = "⚡ Auto-Trigger Shoot (Авто-Выстрел)",
    CurrentValue = false,
-   Callback = function(Value) 
-      autoTriggerEnabled = Value 
-   end,
+   Callback = function(Value) autoTriggerEnabled = Value end,
 })
 
 CombatTab:CreateSlider({
@@ -211,9 +210,7 @@ CombatTab:CreateSlider({
    Increment = 10,
    Suffix = "px",
    CurrentValue = 250,
-   Callback = function(Value)
-      aimbotFovRadius = Value
-   end,
+   Callback = function(Value) aimbotFovRadius = Value end,
 })
 
 CombatTab:CreateToggle({
@@ -258,7 +255,7 @@ CombatTab:CreateButton({
    end,
 })
 
--- ОТРИСОВКА FOV КРУГА
+-- FOV Circle Drawing
 local fovCircle = Drawing.new("Circle")
 fovCircle.Thickness = 2
 fovCircle.Color = Color3.fromRGB(255, 50, 50)
@@ -266,7 +263,6 @@ fovCircle.Filled = false
 fovCircle.Transparency = 0.8
 fovCircle.NumSides = 36
 
--- ========== ЛОГИКА ДОВОДКИ И АВТО-ВЫСТРЕЛА ==========
 local lastShotTime = 0
 
 RunService.RenderStepped:Connect(function()
@@ -302,33 +298,14 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ==================== Вкладка: ВИЗУАЛ & ESP ====================
-VisualsTab:CreateSection("🔥 Drawing ESP")
+VisualsTab:CreateSection("🔥 Drawing ESP Engine")
 
-VisualsTab:CreateToggle({
-   Name = "📜 Имена + Роли + Дистанция",
-   CurrentValue = false,
-   Callback = function(Value) espInfoEnabled = Value end,
-})
+VisualsTab:CreateToggle({ Name = "📜 Имена + Роли + Дистанция", CurrentValue = false, Callback = function(Value) espInfoEnabled = Value end })
+VisualsTab:CreateToggle({ Name = "📦 2D / 3D Боксы (Boxes)", CurrentValue = false, Callback = function(Value) espBoxesEnabled = Value end })
+VisualsTab:CreateToggle({ Name = "📏 Snaplines / Tracers", CurrentValue = false, Callback = function(Value) espTracersEnabled = Value end })
+VisualsTab:CreateToggle({ Name = "🔫 Drop Gun ESP & Marker", CurrentValue = false, Callback = function(Value) gunEspEnabled = Value end })
 
-VisualsTab:CreateToggle({
-   Name = "📦 2D / 3D Боксы (Boxes)",
-   CurrentValue = false,
-   Callback = function(Value) espBoxesEnabled = Value end,
-})
-
-VisualsTab:CreateToggle({
-   Name = "📏 Snaplines / Tracers",
-   CurrentValue = false,
-   Callback = function(Value) espTracersEnabled = Value end,
-})
-
-VisualsTab:CreateToggle({
-   Name = "🔫 Drop Gun ESP & Marker",
-   CurrentValue = false,
-   Callback = function(Value) gunEspEnabled = Value end,
-})
-
-VisualsTab:CreateSection("🎨 Графика и Камера")
+VisualsTab:CreateSection("🎨 Графика")
 
 VisualsTab:CreateSlider({
    Name = "👁️ Расширение FOV",
@@ -342,24 +319,17 @@ VisualsTab:CreateSlider({
    end,
 })
 
-VisualsTab:CreateToggle({
-   Name = "🎯 Кастомный Крестик (Crosshair)",
-   CurrentValue = false,
-   Callback = function(Value) customCrosshairEnabled = Value end,
-})
+VisualsTab:CreateToggle({ Name = "🎯 Кастомный Прицел (Crosshair)", CurrentValue = false, Callback = function(Value) customCrosshairEnabled = Value end })
 
--- ПРЯМОЙ DRAWING ESP ДВИЖОК
 local ESP_Objects = {}
 
 local function createEspForPlayer(plr)
     if plr == player then return end
-    
     local objects = {
         Tracer = Drawing.new("Line"),
         Box = Drawing.new("Square"),
         Text = Drawing.new("Text")
     }
-
     objects.Tracer.Thickness = 1.5
     objects.Tracer.Transparency = 1
     objects.Tracer.Visible = false
@@ -391,13 +361,10 @@ for _, plr in ipairs(Players:GetPlayers()) do createEspForPlayer(plr) end
 Players.PlayerAdded:Connect(createEspForPlayer)
 Players.PlayerRemoving:Connect(removeEspForPlayer)
 
--- Прицел
 local crossLineH = Drawing.new("Line")
 local crossLineV = Drawing.new("Line")
-crossLineH.Thickness = 2
-crossLineH.Color = Color3.fromRGB(0, 255, 200)
-crossLineV.Thickness = 2
-crossLineV.Color = Color3.fromRGB(0, 255, 200)
+crossLineH.Thickness = 2; crossLineH.Color = Color3.fromRGB(0, 255, 200)
+crossLineV.Thickness = 2; crossLineV.Color = Color3.fromRGB(0, 255, 200)
 
 RunService.RenderStepped:Connect(function()
     if customFovEnabled then Camera.FieldOfView = targetFovValue end
@@ -405,16 +372,10 @@ RunService.RenderStepped:Connect(function()
     local viewportSize = Camera.ViewportSize
     local center = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
     if customCrosshairEnabled then
-        crossLineH.From = center - Vector2.new(8, 0)
-        crossLineH.To = center + Vector2.new(8, 0)
-        crossLineH.Visible = true
-
-        crossLineV.From = center - Vector2.new(0, 8)
-        crossLineV.To = center + Vector2.new(0, 8)
-        crossLineV.Visible = true
+        crossLineH.From = center - Vector2.new(8, 0); crossLineH.To = center + Vector2.new(8, 0); crossLineH.Visible = true
+        crossLineV.From = center - Vector2.new(0, 8); crossLineV.To = center + Vector2.new(0, 8); crossLineV.Visible = true
     else
-        crossLineH.Visible = false
-        crossLineV.Visible = false
+        crossLineH.Visible = false; crossLineV.Visible = false
     end
 
     for plr, objs in pairs(ESP_Objects) do
@@ -442,7 +403,6 @@ RunService.RenderStepped:Connect(function()
                 if espBoxesEnabled then
                     local boxHeight = math.abs(headPos.Y - legPos.Y)
                     local boxWidth = boxHeight * 0.65
-                    
                     objs.Box.Size = Vector2.new(boxWidth, boxHeight)
                     objs.Box.Position = Vector2.new(hrpPos.X - (boxWidth / 2), headPos.Y)
                     objs.Box.Color = color
@@ -456,14 +416,10 @@ RunService.RenderStepped:Connect(function()
                     objs.Text.Visible = true
                 else objs.Text.Visible = false end
             else
-                objs.Tracer.Visible = false
-                objs.Box.Visible = false
-                objs.Text.Visible = false
+                objs.Tracer.Visible = false; objs.Box.Visible = false; objs.Text.Visible = false
             end
         else
-            objs.Tracer.Visible = false
-            objs.Box.Visible = false
-            objs.Text.Visible = false
+            objs.Tracer.Visible = false; objs.Box.Visible = false; objs.Text.Visible = false
         end
     end
 end)
@@ -472,13 +428,11 @@ end)
 FlingTab:CreateSection("Управление Рванкой")
 
 local playerDropdown = FlingTab:CreateDropdown({
-   Name = "Выбрать игрока для рванки",
+   Name = "Выбрать игрока для Рванки",
    Options = {"Загрузка..."},
    CurrentOption = {"Загрузка..."},
    MultipleOptions = false,
-   Callback = function(Option) 
-      selectedPlayerName = flingNameMap[Option[1]]
-   end,
+   Callback = function(Option) selectedPlayerName = flingNameMap[Option[1]] end,
 })
 
 local tpDropdown = MiscTab:CreateDropdown({
@@ -486,9 +440,7 @@ local tpDropdown = MiscTab:CreateDropdown({
    Options = {"Загрузка..."},
    CurrentOption = {"Загрузка..."},
    MultipleOptions = false,
-   Callback = function(Option) 
-      tpPlayerName = tpNameMap[Option[1]]
-   end,
+   Callback = function(Option) tpPlayerName = tpNameMap[Option[1]] end,
 })
 
 local function refreshSortedPlayerLists()
@@ -498,7 +450,6 @@ local function refreshSortedPlayerLists()
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player then
             local displayName = p.Name
-            
             if p.Character and (p.Character:FindFirstChild("Knife") or (p:FindFirstChild("Backpack") and p.Backpack:FindFirstChild("Knife"))) then
                 displayName = "🔴 " .. p.Name .. " [MURDER]"
             elseif p.Character and (p.Character:FindFirstChild("Gun") or (p:FindFirstChild("Backpack") and p.Backpack:FindFirstChild("Gun"))) then
@@ -531,7 +482,6 @@ task.spawn(function()
     end
 end)
 
--- ИСПРАВЛЕННЫЙ ДВИЖОК РВАНКИ (С ПОЛНОЦЕННЫМ ВРАЩЕНИЕМ)
 local function emergencyStop()
     isFlingingSingle = false 
     isFlingingAll = false
@@ -581,8 +531,6 @@ local function startFlingLoop(getTargetFunc, isRunningCheck, durationLimit)
         if targetRoot and currentRoot then
             rotAngle = (rotAngle + 100) % 360
             local predictedPos = targetRoot.Position + (targetRoot.AssemblyLinearVelocity * 0.1)
-            
-            -- Вращение CFrame персонажа во всех плоскостях
             local rotation = CFrame.Angles(math.rad(rotAngle * 2), math.rad(rotAngle), math.rad(rotAngle * 3))
             local offset = Vector3.new(math.cos(math.rad(rotAngle)) * 1.2, 0, math.sin(math.rad(rotAngle)) * 1.2)
             
@@ -603,7 +551,7 @@ FlingTab:CreateToggle({
          if targetPlr then
             startFlingLoop(function() return targetPlr end, function() return isFlingingSingle end, 10)
          else
-            Rayfield:Notify({Title = "Ошибка", Content = "Сначала выберите игрока из списка!", Duration = 2})
+            Rayfield:Notify({Title = "Ошибка", Content = "Выбери игрока из списка!", Duration = 2})
             isFlingingSingle = false
          end
       else emergencyStop() end
@@ -640,8 +588,6 @@ FlingTab:CreateToggle({
    end,
 })
 
-FlingTab:CreateSection("Пассивная Защита & Крутилка")
-
 FlingTab:CreateToggle({
    Name = "🌪️ Крутилка-Аура (Безопасная)",
    CurrentValue = false,
@@ -677,14 +623,7 @@ FlingTab:CreateButton({ Name = "🛑 ЭКСТРЕННЫЙ СТОП РВАНКИ"
 FlingTab:CreateToggle({
    Name = "🛡️ Max Anti-Fling",
    CurrentValue = false,
-   Callback = function(Value) 
-      maxAntiFlingEnabled = Value
-      local _, hum, _ = getCharacter()
-      if hum then
-          hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true)
-          hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
-      end
-   end,
+   Callback = function(Value) maxAntiFlingEnabled = Value end,
 })
 
 -- ==================== Вкладка: АВТО-ФАРМ ====================
@@ -711,7 +650,7 @@ FarmingTab:CreateToggle({
 MiscTab:CreateSection("Телепортация")
 
 MiscTab:CreateButton({
-   Name = "⚡ Телепортироваться к выбранному игроку",
+   Name = "⚡ Телепортироваться к игроку",
    Callback = function()
       local targetPlr = Players:FindFirstChild(tpPlayerName or "")
       local _, _, root = getCharacter()
@@ -724,19 +663,11 @@ MiscTab:CreateButton({
    end,
 })
 
-MiscTab:CreateSection("Движение и Физика")
+MiscTab:CreateSection("Физика & Персонаж")
 
-MiscTab:CreateToggle({
-   Name = "🐰 Bunny Hop",
-   CurrentValue = false,
-   Callback = function(Value) bunnyHopEnabled = Value end,
-})
-
-MiscTab:CreateToggle({
-   Name = "🧲 Auto Pick Gun",
-   CurrentValue = false,
-   Callback = function(Value) autoPickGunEnabled = Value end,
-})
+MiscTab:CreateToggle({ Name = "🐰 Bunny Hop", CurrentValue = false, Callback = function(Value) bunnyHopEnabled = Value end })
+MiscTab:CreateToggle({ Name = "🧲 Auto Pick Gun", CurrentValue = false, Callback = function(Value) autoPickGunEnabled = Value end })
+MiscTab:CreateToggle({ Name = "🚶 Noclip", CurrentValue = false, Callback = function(Value) noclipEnabled = Value end })
 
 MiscTab:CreateToggle({
    Name = "👻 Ghost Mode",
@@ -752,18 +683,6 @@ MiscTab:CreateToggle({
           end
       end
    end,
-})
-
-MiscTab:CreateToggle({
-   Name = "🛡️ Anti-Kill Safety",
-   CurrentValue = false,
-   Callback = function(Value) antiKillEnabled = Value end,
-})
-
-MiscTab:CreateToggle({
-   Name = "🚶 Noclip",
-   CurrentValue = false,
-   Callback = function(Value) noclipEnabled = Value end,
 })
 
 -- ==================== СЕРВИСНЫЕ ЦИКЛЫ ====================
@@ -786,11 +705,8 @@ end)
 
 -- Drop Gun ESP Marker
 local gunEspText = Drawing.new("Text")
-gunEspText.Size = 16
-gunEspText.Center = true
-gunEspText.Outline = true
-gunEspText.Color = Color3.fromRGB(255, 230, 0)
-gunEspText.Visible = false
+gunEspText.Size = 16; gunEspText.Center = true; gunEspText.Outline = true
+gunEspText.Color = Color3.fromRGB(255, 230, 0); gunEspText.Visible = false
 
 RunService.RenderStepped:Connect(function()
     local gunDrop = Workspace:FindFirstChild("GunDrop", true) or Workspace:FindFirstChild("Gun", true)
@@ -834,4 +750,4 @@ RunService.Heartbeat:Connect(function()
     hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 end)
 
-Rayfield:Notify({Title = "MM2 Ultimate V37.5", Content = "Hookfunction + Предсказание активны!", Duration = 4})
+Rayfield:Notify({Title = "MM2 Ultimate V37.6", Content = "Скрипт полностью готов и запущен!", Duration = 4})
