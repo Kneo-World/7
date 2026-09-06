@@ -761,7 +761,6 @@ local LocalPlayer = Players.LocalPlayer
 
 local isRoflEnabled = false
 local selectedPlayerName = ""
-local roflTrack = nil
 
 -- Функция получения списка игроков
 local function getPlayerList()
@@ -792,7 +791,7 @@ local PlayerDropdown = RoflTab:CreateDropdown({
    end,
 })
 
--- Обновление списка
+-- Авто-обновление списка
 local function refreshDropdown()
     if PlayerDropdown and PlayerDropdown.Set then
         PlayerDropdown:Set(getPlayerList())
@@ -802,57 +801,35 @@ end
 Players.PlayerAdded:Connect(refreshDropdown)
 Players.PlayerRemoving:Connect(refreshDropdown)
 
--- 2. Запуск эмоции через встроенный Humanoid:PlayEmote
-local function stopEmote(humanoid)
-    if roflTrack then
-        pcall(function() roflTrack:Stop() end)
-        roflTrack = nil
+-- Поза сидения через поворот суставов (Motor6D)
+local function applySitPose(character, enable)
+    if not character then return end
+    
+    -- Для R15 и R6 персонажей
+    local hipRight = character:FindFirstChild("Right Hip", true) or character:FindFirstChild("RightHip", true)
+    local hipLeft = character:FindFirstChild("Left Hip", true) or character:FindFirstChild("LeftHip", true)
+
+    if hipRight and hipLeft then
+        if enable then
+            -- Поворачиваем бедра вперед (поза сидения)
+            hipRight.C6 = CFrame.Angles(0, math.rad(90), math.rad(90))
+            hipLeft.C6 = CFrame.Angles(0, math.rad(-90), math.rad(-90))
+        end
     end
 end
 
-local function startEmote(humanoid)
-    if not humanoid then return end
-    stopEmote(humanoid)
-
-    -- Способ 1: Пробуем запустить эмоцию по имени из каталога Roblox
-    local success = pcall(function()
-        humanoid:PlayEmote("Dying Fish")
-    end)
-
-    -- Способ 2: Если эмоция по названию не сработала, запускаем базовый клиентский клип
-    if not success then
-        pcall(function()
-            local anim = Instance.new("Animation")
-            anim.AnimationId = "rbxassetid://180436334" -- Стандартная системная анимация (Sit)
-            local animator = humanoid:FindFirstChildOfClass("Animator") or humanoid
-            roflTrack = animator:LoadAnimation(anim)
-            roflTrack.Priority = Enum.AnimationPriority.Action4
-            roflTrack.Looped = true
-            roflTrack:Play()
-        end)
-    end
-end
-
--- 3. Переключатель (Toggle)
+-- 2. Переключатель (Toggle)
 RoflTab:CreateToggle({
    Name = "🤡 Включить Head Attach",
    CurrentValue = false,
    Callback = function(Value)
       isRoflEnabled = Value
-      local myChar = LocalPlayer.Character
-      local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
-      if not Value and myHum then
-          stopEmote(myHum)
-      end
    end,
 })
 
--- Основной цикл привязки
+-- 3. Основной цикл позиционирования
 RunService.Heartbeat:Connect(function()
     if not isRoflEnabled or selectedPlayerName == "" or selectedPlayerName == "Нет игроков" then 
-        local myChar = LocalPlayer.Character
-        local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
-        if myHum and roflTrack then stopEmote(myHum) end
         return 
     end
 
@@ -867,26 +844,25 @@ RunService.Heartbeat:Connect(function()
 
     if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Head") then
         local targetHead = targetPlayer.Character.Head
-        
-        -- Старт эмоции 1 раз при включении
-        if not roflTrack then
-            startEmote(myHum)
-        end
 
-        -- Отключаем коллизию
+        -- Отключаем коллизию всех деталей
         for _, part in ipairs(myChar:GetChildren()) do
             if part:IsA("BasePart") then
                 part.CanCollide = false
             end
         end
 
-        -- Разворот поясом к лицу цели и посадка на голову
-        myRoot.CFrame = targetHead.CFrame * CFrame.new(0, 1.0, 0) * CFrame.Angles(0, math.rad(90), 0)
+        -- Переводим Humanoid в состояние Sit для красивой позы без сторонних ID
+        myHum:ChangeState(Enum.HumanoidStateType.Physics)
+        myHum.Sit = true
+
+        -- Разворот поясом/животом к лицу цели и посадка на голову
+        -- Y = 0.8 (чуть ниже к голове)
+        myRoot.CFrame = targetHead.CFrame * CFrame.new(0, 0.8, 0) * CFrame.Angles(0, math.rad(90), 0)
         
+        -- Сброс скоростей
         myRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
         myRoot.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-    else
-        stopEmote(myHum)
     end
 end)
 
